@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Pressable,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -285,73 +286,80 @@ export default function ChatThreadScreen() {
   }, [inputText, identity, contact, contactId, messageTimer]);
 
   return (
-    <ThemedView style={styles.container}>
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <MessageBubble
-            message={item}
-            isMine={item.senderId === identity?.id}
-            currentTime={currentTime}
-            identity={identity}
-            contact={contact}
-          />
-        )}
-        contentContainerStyle={[
-          styles.listContent,
-          {
-            paddingTop: headerHeight + Spacing.lg,
-            paddingBottom: 80 + insets.bottom,
-          },
-        ]}
-        inverted={false}
-        onContentSizeChange={() =>
-          flatListRef.current?.scrollToEnd({ animated: true })
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyMessages}>
-            <Feather name="lock" size={32} color={Colors.dark.secondary} />
-            <ThemedText style={styles.emptyText}>
-              Messages are end-to-end encrypted
-            </ThemedText>
-          </View>
-        }
-      />
-
-      <View
-        style={[
-          styles.inputContainer,
-          { paddingBottom: insets.bottom + Spacing.sm },
-        ]}
-      >
-        <TextInput
-          style={styles.input}
-          value={inputText}
-          onChangeText={setInputText}
-          placeholder="Type a message..."
-          placeholderTextColor={Colors.dark.textDisabled}
-          multiline
-          maxLength={2000}
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={headerHeight}
+    >
+      <ThemedView style={styles.container}>
+        <FlatList
+          ref={flatListRef}
+          style={styles.flatList}
+          data={messages}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <MessageBubble
+              message={item}
+              isMine={item.senderId === identity?.id}
+              currentTime={currentTime}
+              identity={identity}
+              contact={contact}
+            />
+          )}
+          contentContainerStyle={[
+            styles.listContent,
+            {
+              paddingTop: headerHeight + Spacing.lg,
+              paddingBottom: Spacing.lg,
+            },
+          ]}
+          inverted={false}
+          onContentSizeChange={() =>
+            flatListRef.current?.scrollToEnd({ animated: true })
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyMessages}>
+              <Feather name="lock" size={32} color={Colors.dark.secondary} />
+              <ThemedText style={styles.emptyText}>
+                Messages are end-to-end encrypted
+              </ThemedText>
+            </View>
+          }
         />
-        <Pressable
-          onPress={handleSendMessage}
-          disabled={!inputText.trim()}
-          style={({ pressed }) => [
-            styles.sendButton,
-            !inputText.trim() && styles.sendButtonDisabled,
-            pressed && styles.sendButtonPressed,
+
+        <View
+          style={[
+            styles.inputContainer,
+            { paddingBottom: Math.max(insets.bottom, Spacing.sm) },
           ]}
         >
-          <Feather
-            name="send"
-            size={20}
-            color={inputText.trim() ? Colors.dark.buttonText : Colors.dark.textDisabled}
+          <TextInput
+            style={styles.input}
+            value={inputText}
+            onChangeText={setInputText}
+            placeholder="Type a message..."
+            placeholderTextColor={Colors.dark.textDisabled}
+            multiline
+            maxLength={2000}
           />
-        </Pressable>
-      </View>
-    </ThemedView>
+          <Pressable
+            onPress={handleSendMessage}
+            disabled={!inputText.trim()}
+            style={({ pressed }) => [
+              styles.sendButton,
+              !inputText.trim() && styles.sendButtonDisabled,
+              pressed && styles.sendButtonPressed,
+            ]}
+          >
+            <Feather
+              name="send"
+              size={20}
+              color={inputText.trim() ? Colors.dark.buttonText : Colors.dark.textDisabled}
+            />
+          </Pressable>
+        </View>
+      </ThemedView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -359,6 +367,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.dark.backgroundRoot,
+  },
+  flatList: {
+    flex: 1,
   },
   listContent: {
     flexGrow: 1,
@@ -430,10 +441,6 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
   },
   inputContainer: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
     flexDirection: "row",
     alignItems: "flex-end",
     paddingHorizontal: Spacing.lg,
