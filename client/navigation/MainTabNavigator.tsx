@@ -2,10 +2,10 @@ import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import { Platform, StyleSheet, View } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import ChatsStackNavigator from "@/navigation/ChatsStackNavigator";
-import AddContactScreen from "@/screens/AddContactScreen";
+import ContactsScreen from "@/screens/ContactsScreen";
 import SettingsStackNavigator from "@/navigation/SettingsStackNavigator";
 import { Colors, Spacing } from "@/constants/theme";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
@@ -22,7 +22,7 @@ function getTabBarVisibility(route: any): "none" | "flex" {
 
 export type MainTabParamList = {
   ChatsTab: undefined;
-  AddContactTab: undefined;
+  ContactsTab: undefined;
   SettingsTab: undefined;
 };
 
@@ -81,28 +81,13 @@ export default function MainTabNavigator() {
         })}
       />
       <Tab.Screen
-        name="AddContactTab"
-        component={AddContactScreen}
+        name="ContactsTab"
+        component={ContactsScreen}
         options={{
-          title: language === "tr" ? "Ekle" : "Add",
-          headerTitle: language === "tr" ? "Kişi Ekle" : "Add Contact",
-          headerShown: true,
-          headerStyle: {
-            backgroundColor: Colors.dark.backgroundRoot,
-          },
-          headerTintColor: Colors.dark.text,
-          headerTitleStyle: {
-            fontWeight: "600" as const,
-          },
+          title: language === "tr" ? "Kişiler" : "Contacts",
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
-            <View
-              style={[
-                styles.addButton,
-                { backgroundColor: Colors.dark.primary },
-              ]}
-            >
-              <Feather name="user-plus" size={size - 4} color={Colors.dark.buttonText} />
-            </View>
+            <Feather name="users" size={size} color={color} />
           ),
         }}
       />
@@ -120,12 +105,4 @@ export default function MainTabNavigator() {
   );
 }
 
-const styles = StyleSheet.create({
-  addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});
+const styles = StyleSheet.create({});
