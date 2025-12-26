@@ -3,7 +3,9 @@ import type { Contact } from "./crypto";
 
 const CONTACTS_KEY = "@ciphernode/contacts";
 const CHATS_KEY = "@ciphernode/chats";
+const GROUPS_KEY = "@ciphernode/groups";
 const SETTINGS_KEY = "@ciphernode/settings";
+const ONBOARDING_KEY = "@ciphernode/onboarding";
 
 export interface Message {
   id: string;
@@ -14,6 +16,7 @@ export interface Message {
   timestamp: number;
   status: "sending" | "sent" | "delivered" | "read";
   expiresAt?: number;
+  groupId?: string;
 }
 
 export interface Chat {
@@ -21,6 +24,28 @@ export interface Chat {
   messages: Message[];
   lastMessageAt: number;
   unreadCount: number;
+  isArchived: boolean;
+}
+
+export interface GroupMember {
+  id: string;
+  publicKey: string;
+  displayName: string;
+  role: "admin" | "member";
+  addedAt: number;
+}
+
+export interface Group {
+  id: string;
+  name: string;
+  description: string;
+  createdBy: string;
+  createdAt: number;
+  members: GroupMember[];
+  messages: Message[];
+  lastMessageAt: number;
+  unreadCount: number;
+  isArchived: boolean;
 }
 
 export interface AppSettings {
@@ -34,6 +59,19 @@ const DEFAULT_SETTINGS: AppSettings = {
   defaultMessageTimer: 0,
   displayName: "",
 };
+
+export async function hasCompletedOnboarding(): Promise<boolean> {
+  try {
+    const value = await AsyncStorage.getItem(ONBOARDING_KEY);
+    return value === "true";
+  } catch {
+    return false;
+  }
+}
+
+export async function setOnboardingComplete(): Promise<void> {
+  await AsyncStorage.setItem(ONBOARDING_KEY, "true");
+}
 
 export async function getContacts(): Promise<Contact[]> {
   try {
@@ -67,10 +105,21 @@ export async function getContact(contactId: string): Promise<Contact | null> {
 export async function getChats(): Promise<Chat[]> {
   try {
     const stored = await AsyncStorage.getItem(CHATS_KEY);
-    return stored ? JSON.parse(stored) : [];
+    const chats: Chat[] = stored ? JSON.parse(stored) : [];
+    return chats.map((c) => ({ ...c, isArchived: c.isArchived || false }));
   } catch {
     return [];
   }
+}
+
+export async function getActiveChats(): Promise<Chat[]> {
+  const chats = await getChats();
+  return chats.filter((c) => !c.isArchived);
+}
+
+export async function getArchivedChats(): Promise<Chat[]> {
+  const chats = await getChats();
+  return chats.filter((c) => c.isArchived);
 }
 
 export async function getChat(contactId: string): Promise<Chat | null> {
@@ -84,20 +133,21 @@ export async function saveMessage(
 ): Promise<void> {
   const chats = await getChats();
   let chat = chats.find((c) => c.contactId === contactId);
-  
+
   if (!chat) {
     chat = {
       contactId,
       messages: [],
       lastMessageAt: message.timestamp,
       unreadCount: 0,
+      isArchived: false,
     };
     chats.push(chat);
   }
-  
+
   chat.messages.push(message);
   chat.lastMessageAt = message.timestamp;
-  
+
   await AsyncStorage.setItem(CHATS_KEY, JSON.stringify(chats));
 }
 
@@ -110,16 +160,175 @@ export async function markChatAsRead(contactId: string): Promise<void> {
   }
 }
 
+export async function archiveChat(contactId: string): Promise<void> {
+  const chats = await getChats();
+  const chat = chats.find((c) => c.contactId === contactId);
+  if (chat) {
+    chat.isArchived = true;
+    await AsyncStorage.setItem(CHATS_KEY, JSON.stringify(chats));
+  }
+}
+
+export async function unarchiveChat(contactId: string): Promise<void> {
+  const chats = await getChats();
+  const chat = chats.find((c) => c.contactId === contactId);
+  if (chat) {
+    chat.isArchived = false;
+    await AsyncStorage.setItem(CHATS_KEY, JSON.stringify(chats));
+  }
+}
+
 export async function deleteChat(contactId: string): Promise<void> {
   const chats = await getChats();
   const filtered = chats.filter((c) => c.contactId !== contactId);
   await AsyncStorage.setItem(CHATS_KEY, JSON.stringify(filtered));
 }
 
+export async function deleteContactAndChat(contactId: string): Promise<void> {
+  await deleteChat(contactId);
+  await removeContact(contactId);
+}
+
+export async function getGroups(): Promise<Group[]> {
+  try {
+    const stored = await AsyncStorage.getItem(GROUPS_KEY);
+    const groups: Group[] = stored ? JSON.parse(stored) : [];
+    return groups.map((g) => ({ ...g, isArchived: g.isArchived || false }));
+  } catch {
+    return [];
+  }
+}
+
+export async function getActiveGroups(): Promise<Group[]> {
+  const groups = await getGroups();
+  return groups.filter((g) => !g.isArchived);
+}
+
+export async function getArchivedGroups(): Promise<Group[]> {
+  const groups = await getGroups();
+  return groups.filter((g) => g.isArchived);
+}
+
+export async function getGroup(groupId: string): Promise<Group | null> {
+  const groups = await getGroups();
+  return groups.find((g) => g.id === groupId) || null;
+}
+
+export async function createGroup(
+  name: string,
+  description: string,
+  creatorId: string,
+  creatorPublicKey: string,
+  creatorDisplayName: string
+): Promise<Group> {
+  const groups = await getGroups();
+  const newGroup: Group = {
+    id: `grp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    name,
+    description,
+    createdBy: creatorId,
+    createdAt: Date.now(),
+    members: [
+      {
+        id: creatorId,
+        publicKey: creatorPublicKey,
+        displayName: creatorDisplayName,
+        role: "admin",
+        addedAt: Date.now(),
+      },
+    ],
+    messages: [],
+    lastMessageAt: Date.now(),
+    unreadCount: 0,
+    isArchived: false,
+  };
+  groups.push(newGroup);
+  await AsyncStorage.setItem(GROUPS_KEY, JSON.stringify(groups));
+  return newGroup;
+}
+
+export async function addGroupMember(
+  groupId: string,
+  member: GroupMember
+): Promise<void> {
+  const groups = await getGroups();
+  const group = groups.find((g) => g.id === groupId);
+  if (group) {
+    const exists = group.members.find((m) => m.id === member.id);
+    if (!exists) {
+      group.members.push(member);
+      await AsyncStorage.setItem(GROUPS_KEY, JSON.stringify(groups));
+    }
+  }
+}
+
+export async function removeGroupMember(
+  groupId: string,
+  memberId: string
+): Promise<void> {
+  const groups = await getGroups();
+  const group = groups.find((g) => g.id === groupId);
+  if (group) {
+    group.members = group.members.filter((m) => m.id !== memberId);
+    await AsyncStorage.setItem(GROUPS_KEY, JSON.stringify(groups));
+  }
+}
+
+export async function saveGroupMessage(
+  groupId: string,
+  message: Message
+): Promise<void> {
+  const groups = await getGroups();
+  const group = groups.find((g) => g.id === groupId);
+  if (group) {
+    group.messages.push({ ...message, groupId });
+    group.lastMessageAt = message.timestamp;
+    await AsyncStorage.setItem(GROUPS_KEY, JSON.stringify(groups));
+  }
+}
+
+export async function archiveGroup(groupId: string): Promise<void> {
+  const groups = await getGroups();
+  const group = groups.find((g) => g.id === groupId);
+  if (group) {
+    group.isArchived = true;
+    await AsyncStorage.setItem(GROUPS_KEY, JSON.stringify(groups));
+  }
+}
+
+export async function unarchiveGroup(groupId: string): Promise<void> {
+  const groups = await getGroups();
+  const group = groups.find((g) => g.id === groupId);
+  if (group) {
+    group.isArchived = false;
+    await AsyncStorage.setItem(GROUPS_KEY, JSON.stringify(groups));
+  }
+}
+
+export async function deleteGroup(groupId: string): Promise<void> {
+  const groups = await getGroups();
+  const filtered = groups.filter((g) => g.id !== groupId);
+  await AsyncStorage.setItem(GROUPS_KEY, JSON.stringify(filtered));
+}
+
+export async function updateGroupName(
+  groupId: string,
+  name: string
+): Promise<void> {
+  const groups = await getGroups();
+  const group = groups.find((g) => g.id === groupId);
+  if (group) {
+    group.name = name;
+    await AsyncStorage.setItem(GROUPS_KEY, JSON.stringify(groups));
+  }
+}
+
 export async function getSettings(): Promise<AppSettings> {
   try {
     const stored = await AsyncStorage.getItem(SETTINGS_KEY);
-    return stored ? { ...DEFAULT_SETTINGS, ...JSON.parse(stored) } : DEFAULT_SETTINGS;
+    return stored
+      ? { ...DEFAULT_SETTINGS, ...JSON.parse(stored) }
+      : DEFAULT_SETTINGS;
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -139,7 +348,9 @@ export async function clearAllData(): Promise<void> {
   await AsyncStorage.multiRemove([
     CONTACTS_KEY,
     CHATS_KEY,
+    GROUPS_KEY,
     SETTINGS_KEY,
+    ONBOARDING_KEY,
     "@ciphernode/identity",
   ]);
 }

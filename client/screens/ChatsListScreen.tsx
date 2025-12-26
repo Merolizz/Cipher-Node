@@ -1,35 +1,55 @@
-import React, { useCallback, useState, useEffect } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   FlatList,
   StyleSheet,
   Pressable,
   RefreshControl,
+  Alert,
+  Platform,
 } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
-import { getChats, getContacts, type Chat } from "@/lib/storage";
+import { Colors, Spacing, BorderRadius } from "@/constants/theme";
+import {
+  getActiveChats,
+  getActiveGroups,
+  getContacts,
+  archiveChat,
+  archiveGroup,
+  deleteChat,
+  deleteGroup,
+  type Chat,
+  type Group,
+} from "@/lib/storage";
 import type { Contact } from "@/lib/crypto";
 import type { ChatsStackParamList } from "@/navigation/ChatsStackNavigator";
 import ConnectionStatus from "@/components/ConnectionStatus";
 
 type NavigationProp = NativeStackNavigationProp<ChatsStackParamList, "ChatsList">;
 
+type ListItem =
+  | (Chat & { type: "chat"; displayName: string })
+  | (Group & { type: "group" });
+
 interface ChatItemProps {
-  chat: Chat;
-  contact: Contact | null;
+  item: ListItem;
   onPress: () => void;
+  onLongPress: () => void;
 }
 
-function ChatItem({ chat, contact, onPress }: ChatItemProps) {
-  const lastMessage = chat.messages[chat.messages.length - 1];
-  const displayName = contact?.displayName || contact?.id || "Unknown";
+function ChatItem({ item, onPress, onLongPress }: ChatItemProps) {
+  const lastMessage =
+    item.type === "chat"
+      ? item.messages[item.messages.length - 1]
+      : item.messages[item.messages.length - 1];
+  const displayName = item.type === "chat" ? item.displayName : item.name;
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -50,14 +70,16 @@ function ChatItem({ chat, contact, onPress }: ChatItemProps) {
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.chatItem,
-        pressed && styles.chatItemPressed,
-      ]}
+      onLongPress={onLongPress}
+      style={({ pressed }) => [styles.chatItem, pressed && styles.chatItemPressed]}
     >
       <View style={styles.avatarContainer}>
         <View style={styles.avatar}>
-          <Feather name="lock" size={20} color={Colors.dark.secondary} />
+          <Feather
+            name={item.type === "chat" ? "lock" : "users"}
+            size={20}
+            color={Colors.dark.secondary}
+          />
         </View>
       </View>
       <View style={styles.chatContent}>
@@ -70,17 +92,14 @@ function ChatItem({ chat, contact, onPress }: ChatItemProps) {
           </ThemedText>
         </View>
         <View style={styles.chatPreview}>
-          <ThemedText
-            style={styles.messagePreview}
-            numberOfLines={1}
-          >
-            {lastMessage?.content || "No messages yet"}
+          <ThemedText style={styles.messagePreview} numberOfLines={1}>
+            {item.type === "group" && lastMessage
+              ? `${lastMessage.senderId.split("-")[0]}: ${lastMessage.content}`
+              : lastMessage?.content || "No messages yet"}
           </ThemedText>
-          {chat.unreadCount > 0 ? (
+          {item.unreadCount > 0 ? (
             <View style={styles.unreadBadge}>
-              <ThemedText style={styles.unreadCount}>
-                {chat.unreadCount}
-              </ThemedText>
+              <ThemedText style={styles.unreadCount}>{item.unreadCount}</ThemedText>
             </View>
           ) : null}
         </View>
@@ -99,20 +118,32 @@ function EmptyState() {
       </View>
       <ThemedText style={styles.emptyTitle}>No chats yet</ThemedText>
       <ThemedText style={styles.emptySubtitle}>
-        Add a contact to start messaging securely
+        Add a contact or create a group to start messaging securely
       </ThemedText>
-      <Pressable
-        style={({ pressed }) => [
-          styles.emptyButton,
-          pressed && styles.emptyButtonPressed,
-        ]}
-        onPress={() => {
-          navigation.getParent()?.navigate("AddContactTab" as never);
-        }}
-      >
-        <Feather name="user-plus" size={18} color={Colors.dark.buttonText} />
-        <ThemedText style={styles.emptyButtonText}>Add Contact</ThemedText>
-      </Pressable>
+      <View style={styles.emptyButtons}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.emptyButton,
+            pressed && styles.emptyButtonPressed,
+          ]}
+          onPress={() => {
+            navigation.getParent()?.navigate("AddContactTab" as never);
+          }}
+        >
+          <Feather name="user-plus" size={18} color={Colors.dark.buttonText} />
+          <ThemedText style={styles.emptyButtonText}>Add Contact</ThemedText>
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [
+            styles.emptyButtonSecondary,
+            pressed && styles.emptyButtonPressed,
+          ]}
+          onPress={() => navigation.navigate("CreateGroup")}
+        >
+          <Feather name="users" size={18} color={Colors.dark.primary} />
+          <ThemedText style={styles.emptyButtonTextSecondary}>Create Group</ThemedText>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -121,17 +152,36 @@ export default function ChatsListScreen() {
   const navigation = useNavigation<NavigationProp>();
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
-  const [chats, setChats] = useState<Chat[]>([]);
+  const [items, setItems] = useState<ListItem[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadData = useCallback(async () => {
-    const [chatsData, contactsData] = await Promise.all([
-      getChats(),
+    const [chatsData, groupsData, contactsData] = await Promise.all([
+      getActiveChats(),
+      getActiveGroups(),
       getContacts(),
     ]);
-    setChats(chatsData.sort((a, b) => b.lastMessageAt - a.lastMessageAt));
     setContacts(contactsData);
+
+    const chatItems: ListItem[] = chatsData.map((chat) => ({
+      ...chat,
+      type: "chat" as const,
+      displayName:
+        contactsData.find((c) => c.id === chat.contactId)?.displayName ||
+        chat.contactId,
+    }));
+
+    const groupItems: ListItem[] = groupsData.map((group) => ({
+      ...group,
+      type: "group" as const,
+    }));
+
+    const allItems = [...chatItems, ...groupItems].sort(
+      (a, b) => b.lastMessageAt - a.lastMessageAt
+    );
+
+    setItems(allItems);
   }, []);
 
   useFocusEffect(
@@ -146,28 +196,106 @@ export default function ChatsListScreen() {
     setRefreshing(false);
   }, [loadData]);
 
-  const getContactForChat = (contactId: string) => {
-    return contacts.find((c) => c.id === contactId) || null;
+  const handleLongPress = (item: ListItem) => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    const options = [
+      {
+        text: "Archive",
+        onPress: async () => {
+          if (item.type === "chat") {
+            await archiveChat(item.contactId);
+          } else {
+            await archiveGroup(item.id);
+          }
+          loadData();
+        },
+      },
+      {
+        text: "Delete",
+        style: "destructive" as const,
+        onPress: () => {
+          Alert.alert(
+            "Delete",
+            `Are you sure you want to delete this ${item.type === "chat" ? "conversation" : "group"}?`,
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Delete",
+                style: "destructive",
+                onPress: async () => {
+                  if (item.type === "chat") {
+                    await deleteChat(item.contactId);
+                  } else {
+                    await deleteGroup(item.id);
+                  }
+                  loadData();
+                },
+              },
+            ]
+          );
+        },
+      },
+      { text: "Cancel", style: "cancel" as const },
+    ];
+
+    Alert.alert(
+      item.type === "chat" ? item.displayName : item.name,
+      "Choose an action",
+      options
+    );
+  };
+
+  const handleItemPress = (item: ListItem) => {
+    if (item.type === "chat") {
+      navigation.navigate("ChatThread", { contactId: item.contactId });
+    } else {
+      navigation.navigate("GroupThread", { groupId: item.id });
+    }
   };
 
   React.useLayoutEffect(() => {
     navigation.setOptions({
       headerLeft: () => <ConnectionStatus />,
+      headerRight: () => (
+        <View style={styles.headerRight}>
+          <Pressable
+            onPress={() => navigation.navigate("ArchivedChats")}
+            style={({ pressed }) => [
+              styles.headerButton,
+              pressed && styles.headerButtonPressed,
+            ]}
+          >
+            <Feather name="archive" size={20} color={Colors.dark.text} />
+          </Pressable>
+          <Pressable
+            onPress={() => navigation.navigate("CreateGroup")}
+            style={({ pressed }) => [
+              styles.headerButton,
+              pressed && styles.headerButtonPressed,
+            ]}
+          >
+            <Feather name="users" size={20} color={Colors.dark.text} />
+          </Pressable>
+        </View>
+      ),
     });
   }, [navigation]);
 
   return (
     <ThemedView style={styles.container}>
       <FlatList
-        data={chats}
-        keyExtractor={(item) => item.contactId}
+        data={items}
+        keyExtractor={(item) =>
+          item.type === "chat" ? `chat-${item.contactId}` : `group-${item.id}`
+        }
         renderItem={({ item }) => (
           <ChatItem
-            chat={item}
-            contact={getContactForChat(item.contactId)}
-            onPress={() =>
-              navigation.navigate("ChatThread", { contactId: item.contactId })
-            }
+            item={item}
+            onPress={() => handleItemPress(item)}
+            onLongPress={() => handleLongPress(item)}
           />
         )}
         contentContainerStyle={[
@@ -176,7 +304,7 @@ export default function ChatsListScreen() {
             paddingTop: headerHeight + Spacing.lg,
             paddingBottom: tabBarHeight + Spacing.xl,
           },
-          chats.length === 0 && styles.emptyListContent,
+          items.length === 0 && styles.emptyListContent,
         ]}
         ListEmptyComponent={EmptyState}
         refreshControl={
@@ -195,6 +323,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.dark.backgroundRoot,
+  },
+  headerRight: {
+    flexDirection: "row",
+    gap: Spacing.xs,
+  },
+  headerButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerButtonPressed: {
+    backgroundColor: Colors.dark.backgroundSecondary,
   },
   listContent: {
     flexGrow: 1,
@@ -285,10 +427,28 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: Spacing["2xl"],
   },
+  emptyButtons: {
+    gap: Spacing.md,
+    width: "100%",
+    maxWidth: 280,
+  },
   emptyButton: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     backgroundColor: Colors.dark.primary,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.xs,
+    gap: Spacing.sm,
+  },
+  emptyButtonSecondary: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: Colors.dark.primary,
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.xs,
@@ -301,5 +461,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: Colors.dark.buttonText,
+  },
+  emptyButtonTextSecondary: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.dark.primary,
   },
 });
