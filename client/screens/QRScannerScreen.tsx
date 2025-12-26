@@ -17,13 +17,50 @@ import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { addContact, getContacts } from "@/lib/storage";
 import { useIdentity } from "@/hooks/useIdentity";
+import { useLanguage } from "@/constants/language";
 
 export default function QRScannerScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { identity } = useIdentity();
+  const { language } = useLanguage();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
+
+  const t = {
+    loadingCamera: language === "tr" ? "Kamera yukleniyor..." : "Loading camera...",
+    cameraAccessRequired: language === "tr" ? "Kamera Erişimi Gerekli" : "Camera Access Required",
+    enableCameraInSettings: language === "tr" 
+      ? "QR kodlari taramak icin Ayarlar'dan kamera erisimini etkinlestirin"
+      : "Please enable camera access in Settings to scan QR codes",
+    openSettings: language === "tr" ? "Ayarlari Ac" : "Open Settings",
+    goBack: language === "tr" ? "Geri Don" : "Go Back",
+    cameraPermission: language === "tr" ? "Kamera Izni" : "Camera Permission",
+    needCameraAccess: language === "tr" 
+      ? "QR kodlari taramak icin kamera erisimi gerekiyor"
+      : "We need camera access to scan QR codes",
+    enableCamera: language === "tr" ? "Kamerayi Etkinlestir" : "Enable Camera",
+    cancel: language === "tr" ? "Iptal" : "Cancel",
+    useExpoGo: language === "tr" ? "Expo Go Kullanin" : "Use Expo Go",
+    qrScanningBest: language === "tr" 
+      ? "QR tarama mobilde en iyi calisir. QR kodlari taramak icin bu uygulamayi Expo Go'da acin."
+      : "QR scanning is best on mobile. Open this app in Expo Go to scan QR codes.",
+    error: language === "tr" ? "Hata" : "Error",
+    cannotAddSelf: language === "tr" ? "Kendinizi kisi olarak ekleyemezsiniz" : "You cannot add yourself as a contact",
+    alreadyAdded: language === "tr" ? "Zaten Ekli" : "Already Added",
+    alreadyAddedMsg: language === "tr" ? "Bu kisi zaten listenizde" : "This contact is already in your list",
+    success: language === "tr" ? "Basarili" : "Success",
+    contactAdded: language === "tr" ? "Kisi basariyla eklendi" : "Contact added successfully",
+    ok: language === "tr" ? "Tamam" : "OK",
+    invalidQR: language === "tr" ? "Gecersiz QR Kodu" : "Invalid QR Code",
+    invalidQRMsg: language === "tr" 
+      ? "Bu QR kodu gecerli bir CipherNode kisisi degil"
+      : "This QR code is not a valid CipherNode contact",
+    scanQR: language === "tr" ? "QR Kod Tara" : "Scan QR Code",
+    positionQR: language === "tr" 
+      ? "QR kodu cerceve icine yerlestirin"
+      : "Position QR code within the frame",
+  };
 
   const handleBarCodeScanned = async ({ data }: { data: string }) => {
     if (scanned) return;
@@ -36,14 +73,14 @@ export default function QRScannerScreen() {
       }
 
       if (parsed.id === identity?.id) {
-        Alert.alert("Error", "You cannot add yourself as a contact");
+        Alert.alert(t.error, t.cannotAddSelf);
         setScanned(false);
         return;
       }
 
       const contacts = await getContacts();
       if (contacts.some((c) => c.id === parsed.id)) {
-        Alert.alert("Already Added", "This contact is already in your list");
+        Alert.alert(t.alreadyAdded, t.alreadyAddedMsg);
         navigation.goBack();
         return;
       }
@@ -60,12 +97,12 @@ export default function QRScannerScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
 
-      Alert.alert("Success", "Contact added successfully", [
-        { text: "OK", onPress: () => navigation.goBack() },
+      Alert.alert(t.success, t.contactAdded, [
+        { text: t.ok, onPress: () => navigation.goBack() },
       ]);
     } catch (error) {
-      Alert.alert("Invalid QR Code", "This QR code is not a valid CipherNode contact", [
-        { text: "OK", onPress: () => setScanned(false) },
+      Alert.alert(t.invalidQR, t.invalidQRMsg, [
+        { text: t.ok, onPress: () => setScanned(false) },
       ]);
     }
   };
@@ -73,7 +110,7 @@ export default function QRScannerScreen() {
   if (!permission) {
     return (
       <ThemedView style={styles.container}>
-        <ThemedText>Loading camera...</ThemedText>
+        <ThemedText>{t.loadingCamera}</ThemedText>
       </ThemedView>
     );
   }
@@ -83,9 +120,9 @@ export default function QRScannerScreen() {
       return (
         <ThemedView style={[styles.container, styles.permissionContainer]}>
           <Feather name="camera-off" size={64} color={Colors.dark.textSecondary} />
-          <ThemedText style={styles.permissionTitle}>Camera Access Required</ThemedText>
+          <ThemedText style={styles.permissionTitle}>{t.cameraAccessRequired}</ThemedText>
           <ThemedText style={styles.permissionText}>
-            Please enable camera access in Settings to scan QR codes
+            {t.enableCameraInSettings}
           </ThemedText>
           {Platform.OS !== "web" ? (
             <Pressable
@@ -101,7 +138,7 @@ export default function QRScannerScreen() {
                 pressed && styles.settingsButtonPressed,
               ]}
             >
-              <ThemedText style={styles.settingsButtonText}>Open Settings</ThemedText>
+              <ThemedText style={styles.settingsButtonText}>{t.openSettings}</ThemedText>
             </Pressable>
           ) : null}
           <Pressable
@@ -111,7 +148,7 @@ export default function QRScannerScreen() {
               pressed && styles.closeButtonPressed,
             ]}
           >
-            <ThemedText style={styles.closeButtonText}>Go Back</ThemedText>
+            <ThemedText style={styles.closeButtonText}>{t.goBack}</ThemedText>
           </Pressable>
         </ThemedView>
       );
@@ -120,9 +157,9 @@ export default function QRScannerScreen() {
     return (
       <ThemedView style={[styles.container, styles.permissionContainer]}>
         <Feather name="camera" size={64} color={Colors.dark.primary} />
-        <ThemedText style={styles.permissionTitle}>Camera Permission</ThemedText>
+        <ThemedText style={styles.permissionTitle}>{t.cameraPermission}</ThemedText>
         <ThemedText style={styles.permissionText}>
-          We need camera access to scan QR codes
+          {t.needCameraAccess}
         </ThemedText>
         <Pressable
           onPress={requestPermission}
@@ -131,7 +168,7 @@ export default function QRScannerScreen() {
             pressed && styles.permissionButtonPressed,
           ]}
         >
-          <ThemedText style={styles.permissionButtonText}>Enable Camera</ThemedText>
+          <ThemedText style={styles.permissionButtonText}>{t.enableCamera}</ThemedText>
         </Pressable>
         <Pressable
           onPress={() => navigation.goBack()}
@@ -140,7 +177,7 @@ export default function QRScannerScreen() {
             pressed && styles.closeButtonPressed,
           ]}
         >
-          <ThemedText style={styles.closeButtonText}>Cancel</ThemedText>
+          <ThemedText style={styles.closeButtonText}>{t.cancel}</ThemedText>
         </Pressable>
       </ThemedView>
     );
@@ -150,9 +187,9 @@ export default function QRScannerScreen() {
     return (
       <ThemedView style={[styles.container, styles.permissionContainer]}>
         <Feather name="smartphone" size={64} color={Colors.dark.primary} />
-        <ThemedText style={styles.permissionTitle}>Use Expo Go</ThemedText>
+        <ThemedText style={styles.permissionTitle}>{t.useExpoGo}</ThemedText>
         <ThemedText style={styles.permissionText}>
-          QR scanning is best on mobile. Open this app in Expo Go to scan QR codes.
+          {t.qrScanningBest}
         </ThemedText>
         <Pressable
           onPress={() => navigation.goBack()}
@@ -161,7 +198,7 @@ export default function QRScannerScreen() {
             pressed && styles.closeButtonPressed,
           ]}
         >
-          <ThemedText style={styles.closeButtonText}>Go Back</ThemedText>
+          <ThemedText style={styles.closeButtonText}>{t.goBack}</ThemedText>
         </Pressable>
       </ThemedView>
     );
@@ -188,7 +225,7 @@ export default function QRScannerScreen() {
           >
             <Feather name="x" size={24} color={Colors.dark.text} />
           </Pressable>
-          <ThemedText style={styles.title}>Scan QR Code</ThemedText>
+          <ThemedText style={styles.title}>{t.scanQR}</ThemedText>
           <View style={styles.placeholder} />
         </View>
 
@@ -200,7 +237,7 @@ export default function QRScannerScreen() {
         </View>
 
         <ThemedText style={styles.hint}>
-          Point your camera at a contact's QR code
+          {t.positionQR}
         </ThemedText>
       </View>
     </View>
