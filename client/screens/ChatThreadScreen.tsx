@@ -285,13 +285,15 @@ export default function ChatThreadScreen() {
     }
   }, [inputText, identity, contact, contactId, messageTimer]);
 
+  const bottomPadding = Math.max(insets.bottom, Spacing.md);
+
   return (
-    <KeyboardAvoidingView 
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={headerHeight}
-    >
-      <ThemedView style={styles.container}>
+    <ThemedView style={styles.container}>
+      <KeyboardAvoidingView 
+        style={styles.keyboardView}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={headerHeight}
+      >
         <FlatList
           ref={flatListRef}
           style={styles.flatList}
@@ -310,7 +312,7 @@ export default function ChatThreadScreen() {
             styles.listContent,
             {
               paddingTop: headerHeight + Spacing.lg,
-              paddingBottom: Spacing.lg,
+              paddingBottom: Spacing.md,
             },
           ]}
           inverted={false}
@@ -327,12 +329,7 @@ export default function ChatThreadScreen() {
           }
         />
 
-        <View
-          style={[
-            styles.inputContainer,
-            { paddingBottom: Math.max(insets.bottom, Spacing.sm) },
-          ]}
-        >
+        <View style={[styles.inputContainer, { paddingBottom: bottomPadding }]}>
           <TextInput
             style={styles.input}
             value={inputText}
@@ -358,8 +355,8 @@ export default function ChatThreadScreen() {
             />
           </Pressable>
         </View>
-      </ThemedView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </ThemedView>
   );
 }
 
@@ -367,6 +364,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.dark.backgroundRoot,
+  },
+  keyboardView: {
+    flex: 1,
   },
   flatList: {
     flex: 1,
