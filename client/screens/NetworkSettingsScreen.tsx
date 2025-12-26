@@ -16,6 +16,7 @@ import { Colors, Spacing, BorderRadius, Fonts } from "@/constants/theme";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { getSettings, updateSettings } from "@/lib/storage";
 import { setCustomServerUrl } from "@/lib/query-client";
+import { reconnectToServer } from "@/lib/socket";
 import { useLanguage } from "@/constants/language";
 
 type ServerType = "official" | "custom";
@@ -70,6 +71,12 @@ export default function NetworkSettingsScreen() {
       await updateSettings({ serverUrl: "" });
       setCustomServerUrl(null);
       setCustomUrl("");
+      
+      try {
+        await reconnectToServer();
+      } catch {
+        Alert.alert(t.error, t.connectionFailed);
+      }
     }
   };
 
@@ -88,10 +95,19 @@ export default function NetworkSettingsScreen() {
 
     await updateSettings({ serverUrl: customUrl.trim() });
     setCustomServerUrl(customUrl.trim());
-    if (Platform.OS !== "web") {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    
+    try {
+      await reconnectToServer();
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      Alert.alert(t.saved, t.customUrlSaved);
+    } catch {
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+      Alert.alert(t.error, t.connectionFailed);
     }
-    Alert.alert(t.saved, t.customUrlSaved);
   };
 
   const handleTestConnection = async () => {

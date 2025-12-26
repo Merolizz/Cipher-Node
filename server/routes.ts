@@ -20,21 +20,24 @@ interface GroupInfo {
 const connectedUsers = new Map<string, string>();
 const pendingMessages = new Map<string, PendingMessage[]>();
 const groups = new Map<string, GroupInfo>();
-const deliveredMessageIds = new Set<string>();
+const deliveredMessageIds = new Map<string, number>();
 const MESSAGE_TTL = 24 * 60 * 60 * 1000;
-const DELIVERED_IDS_TTL = 24 * 60 * 60 * 1000;
+const DELIVERED_IDS_TTL = 60 * 60 * 1000;
 
 function generateMessageId(): string {
   return `srv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
 function cleanupDeliveredIds() {
-  if (deliveredMessageIds.size > 100000) {
-    deliveredMessageIds.clear();
+  const now = Date.now();
+  for (const [id, timestamp] of deliveredMessageIds.entries()) {
+    if (now - timestamp > DELIVERED_IDS_TTL) {
+      deliveredMessageIds.delete(id);
+    }
   }
 }
 
-setInterval(cleanupDeliveredIds, 60 * 60 * 1000);
+setInterval(cleanupDeliveredIds, 5 * 60 * 1000);
 
 function cleanupExpiredMessages() {
   const now = Date.now();
@@ -123,6 +126,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[Relay] Duplicate message ignored: ${messageId}`);
         return;
       }
+      deliveredMessageIds.set(messageId, Date.now());
       
       const targetSocketId = connectedUsers.get(data.to);
       const timestamp = Date.now();
@@ -134,7 +138,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           encrypted: data.encrypted,
           timestamp,
         });
-        deliveredMessageIds.add(messageId);
         console.log(`[Relay] Message delivered: ${data.from} -> ${data.to}`);
       } else {
         const pending = pendingMessages.get(data.to) || [];
@@ -184,6 +187,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[Relay] Duplicate group message ignored: ${messageId}`);
         return;
       }
+      deliveredMessageIds.set(messageId, Date.now());
       
       const group = groups.get(data.groupId);
       const timestamp = Date.now();
@@ -216,7 +220,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
         });
-        deliveredMessageIds.add(messageId);
         console.log(`[Relay] Group message: ${data.from} -> ${data.groupId}`);
       } else {
         io.to(data.groupId).emit("group:message", {
@@ -227,7 +230,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           content: data.content,
           timestamp,
         });
-        deliveredMessageIds.add(messageId);
         console.log(`[Relay] Group message (room): ${data.from} -> ${data.groupId}`);
       }
     });

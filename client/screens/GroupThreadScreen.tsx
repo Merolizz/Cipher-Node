@@ -112,7 +112,12 @@ export default function GroupThreadScreen() {
   const loadGroup = useCallback(async () => {
     await cleanupExpiredMessagesForGroup(groupId);
     const [g, settings] = await Promise.all([getGroup(groupId), getSettings()]);
-    setGroup(g);
+    if (g) {
+      const clonedGroup = { ...g, messages: g.messages.map(m => ({ ...m })) };
+      setGroup(clonedGroup);
+    } else {
+      setGroup(null);
+    }
     setMessageTimer(settings.defaultMessageTimer);
   }, [groupId]);
 
@@ -120,7 +125,10 @@ export default function GroupThreadScreen() {
     const interval = setInterval(async () => {
       await cleanupExpiredMessagesForGroup(groupId);
       const g = await getGroup(groupId);
-      if (g) setGroup(g);
+      if (g) {
+        const clonedGroup = { ...g, messages: g.messages.map(m => ({ ...m })) };
+        setGroup(clonedGroup);
+      }
     }, 5000);
     return () => clearInterval(interval);
   }, [groupId]);

@@ -29,7 +29,8 @@ import {
   cleanupExpiredMessagesForChat,
   type Message,
 } from "@/lib/storage";
-import type { Contact } from "@/lib/crypto";
+import { encryptMessage, decryptMessage, type Contact, type UserIdentity } from "@/lib/crypto";
+import { sendMessage as socketSendMessage, onMessage } from "@/lib/socket";
 import type { ChatsStackParamList } from "@/navigation/ChatsStackNavigator";
 import { useIdentity } from "@/hooks/useIdentity";
 
@@ -40,6 +41,8 @@ interface MessageBubbleProps {
   message: Message;
   isMine: boolean;
   currentTime: number;
+  identity: UserIdentity | null;
+  contact: Contact | null;
 }
 
 function formatRemainingTime(expiresAt: number, now: number): string {
@@ -55,7 +58,39 @@ function formatRemainingTime(expiresAt: number, now: number): string {
   return `${days}d`;
 }
 
-function MessageBubble({ message, isMine, currentTime }: MessageBubbleProps) {
+function MessageBubble({ message, isMine, currentTime, identity, contact }: MessageBubbleProps) {
+  const [displayContent, setDisplayContent] = useState(message.content);
+  const [verified, setVerified] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const decrypt = async () => {
+      if (isMine) {
+        setDisplayContent(message.content);
+        setVerified(true);
+        return;
+      }
+
+      if (!identity?.privateKey) {
+        setDisplayContent(message.content);
+        return;
+      }
+
+      const encryptedPayload = message.encrypted || message.content;
+      const isEncrypted = encryptedPayload.includes("-----BEGIN PGP MESSAGE-----");
+      
+      if (isEncrypted) {
+        const senderPublicKey = contact?.publicKey;
+        const result = await decryptMessage(encryptedPayload, identity.privateKey, senderPublicKey);
+        setDisplayContent(result.content);
+        setVerified(result.verified);
+      } else {
+        setDisplayContent(message.content);
+        setVerified(null);
+      }
+    };
+    decrypt();
+  }, [message.content, message.encrypted, identity, contact, isMine]);
+
   const formatTime = (timestamp: number) => {
     return new Date(timestamp).toLocaleTimeString([], {
       hour: "2-digit",
@@ -76,7 +111,7 @@ function MessageBubble({ message, isMine, currentTime }: MessageBubbleProps) {
           isMine ? styles.messageTextMine : styles.messageTextTheirs,
         ]}
       >
-        {message.content}
+        {displayContent}
       </ThemedText>
       <View style={styles.messageFooter}>
         {message.expiresAt ? (
@@ -98,9 +133,15 @@ function MessageBubble({ message, isMine, currentTime }: MessageBubbleProps) {
           </View>
         ) : (
           <Feather
-            name="lock"
+            name={verified === false ? "alert-triangle" : "lock"}
             size={10}
-            color={isMine ? Colors.dark.buttonText : Colors.dark.secondary}
+            color={
+              verified === false
+                ? Colors.dark.warning
+                : isMine
+                  ? Colors.dark.buttonText
+                  : Colors.dark.secondary
+            }
             style={styles.lockIcon}
           />
         )}
@@ -139,15 +180,16 @@ export default function ChatThreadScreen() {
 
   const loadData = useCallback(async () => {
     await cleanupExpiredMessagesForChat(contactId);
-    const [chatData, contactData, settings] = await Promise.all([
+    const [chatDataRaw, contactData, settings] = await Promise.all([
       getChat(contactId),
       getContact(contactId),
       getSettings(),
     ]);
-    setMessages(chatData?.messages || []);
+    const clonedMessages = chatDataRaw?.messages.map(m => ({ ...m })) || [];
+    setMessages(clonedMessages);
     setContact(contactData);
     setMessageTimer(settings.defaultMessageTimer);
-    if (chatData) {
+    if (chatDataRaw) {
       await markChatAsRead(contactId);
     }
   }, [contactId]);
@@ -157,7 +199,8 @@ export default function ChatThreadScreen() {
       await cleanupExpiredMessagesForChat(contactId);
       const chatData = await getChat(contactId);
       if (chatData) {
-        setMessages(chatData.messages);
+        const clonedMessages = chatData.messages.map(m => ({ ...m }));
+        setMessages(clonedMessages);
       }
     }, 5000);
     return () => clearInterval(interval);
@@ -183,17 +226,50 @@ export default function ChatThreadScreen() {
     });
   }, [navigation, contact, contactId]);
 
-  const sendMessage = useCallback(async () => {
-    if (!inputText.trim() || !identity) return;
+  useEffect(() => {
+    const unsubscribe = onMessage(async (msg) => {
+      if (msg.from === contactId && identity) {
+        const receivedMessage: Message = {
+          id: msg.id || generateMessageId(),
+          content: msg.encrypted,
+          encrypted: msg.encrypted,
+          senderId: msg.from,
+          recipientId: identity.id,
+          timestamp: msg.timestamp,
+          status: "received",
+        };
+        await saveMessage(contactId, receivedMessage);
+        loadData();
+      }
+    });
+    return unsubscribe;
+  }, [contactId, identity, loadData]);
+
+  const handleSendMessage = useCallback(async () => {
+    if (!inputText.trim() || !identity || !contact) return;
+
+    const messageId = generateMessageId();
+    const plaintext = inputText.trim();
+    let encryptedContent = plaintext;
+    
+    try {
+      if (contact.publicKey && identity.privateKey) {
+        encryptedContent = await encryptMessage(plaintext, contact.publicKey, identity.privateKey);
+      } else if (contact.publicKey) {
+        encryptedContent = await encryptMessage(plaintext, contact.publicKey);
+      }
+    } catch (error) {
+      console.error("Encryption failed:", error);
+    }
 
     const message: Message = {
-      id: generateMessageId(),
-      content: inputText.trim(),
-      encrypted: "",
+      id: messageId,
+      content: plaintext,
+      encrypted: encryptedContent,
       senderId: identity.id,
       recipientId: contactId,
       timestamp: Date.now(),
-      status: "sent",
+      status: "sending",
       expiresAt: calculateExpiresAt(messageTimer),
     };
 
@@ -201,10 +277,12 @@ export default function ChatThreadScreen() {
     setMessages((prev) => [...prev, message]);
     setInputText("");
 
+    socketSendMessage(contactId, encryptedContent, messageId);
+
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-  }, [inputText, identity, contactId, messageTimer]);
+  }, [inputText, identity, contact, contactId, messageTimer]);
 
   return (
     <ThemedView style={styles.container}>
@@ -217,6 +295,8 @@ export default function ChatThreadScreen() {
             message={item}
             isMine={item.senderId === identity?.id}
             currentTime={currentTime}
+            identity={identity}
+            contact={contact}
           />
         )}
         contentContainerStyle={[
@@ -256,7 +336,7 @@ export default function ChatThreadScreen() {
           maxLength={2000}
         />
         <Pressable
-          onPress={sendMessage}
+          onPress={handleSendMessage}
           disabled={!inputText.trim()}
           style={({ pressed }) => [
             styles.sendButton,

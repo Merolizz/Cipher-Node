@@ -102,8 +102,8 @@ export async function initSocket(userId: string, publicKey: string): Promise<Soc
 }
 
 export function sendMessage(to: string, encrypted: string, id: string): void {
-  if (socket?.connected) {
-    socket.emit("message", { to, encrypted, id });
+  if (socket?.connected && currentUserId) {
+    socket.emit("message", { to, from: currentUserId, encrypted, id });
   }
 }
 
@@ -205,6 +205,43 @@ export async function reconnectWithTor(): Promise<void> {
     const torSettings = await getTorSettings();
     currentTorSettings = torSettings;
     torEnabled = torSettings.enabled;
+    
+    return new Promise((resolve, reject) => {
+      initSocket(userId, publicKey).then((newSocket) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("Connection timeout"));
+        }, 10000);
+        
+        const onConnect = () => {
+          clearTimeout(timeout);
+          newSocket.off("connect", onConnect);
+          newSocket.off("connect_error", onError);
+          resolve();
+        };
+        
+        const onError = () => {
+          clearTimeout(timeout);
+          newSocket.off("connect", onConnect);
+          newSocket.off("connect_error", onError);
+          reject(new Error("Connection failed"));
+        };
+        
+        if (newSocket.connected) {
+          resolve();
+        } else {
+          newSocket.on("connect", onConnect);
+          newSocket.on("connect_error", onError);
+        }
+      }).catch(reject);
+    });
+  }
+}
+
+export async function reconnectToServer(): Promise<void> {
+  if (currentUserId) {
+    const userId = currentUserId;
+    const publicKey = currentPublicKey;
+    disconnect();
     
     return new Promise((resolve, reject) => {
       initSocket(userId, publicKey).then((newSocket) => {

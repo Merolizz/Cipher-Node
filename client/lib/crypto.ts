@@ -108,7 +108,8 @@ export async function regenerateIdentity(): Promise<UserIdentity> {
 
 export async function encryptMessage(
   message: string,
-  recipientPublicKey: string
+  recipientPublicKey: string,
+  senderPrivateKey?: string
 ): Promise<string> {
   if (!recipientPublicKey) {
     return message;
@@ -117,10 +118,21 @@ export async function encryptMessage(
   try {
     const publicKey = await openpgp.readKey({ armoredKey: recipientPublicKey });
     
-    const encrypted = await openpgp.encrypt({
+    const encryptionOptions: {
+      message: openpgp.Message<string>;
+      encryptionKeys: openpgp.Key;
+      signingKeys?: openpgp.PrivateKey;
+    } = {
       message: await openpgp.createMessage({ text: message }),
       encryptionKeys: publicKey,
-    });
+    };
+    
+    if (senderPrivateKey) {
+      const privateKey = await openpgp.readPrivateKey({ armoredKey: senderPrivateKey });
+      encryptionOptions.signingKeys = privateKey;
+    }
+    
+    const encrypted = await openpgp.encrypt(encryptionOptions);
 
     return encrypted as string;
   } catch (error) {
@@ -131,10 +143,11 @@ export async function encryptMessage(
 
 export async function decryptMessage(
   encryptedMessage: string,
-  privateKeyArmored: string
-): Promise<string> {
+  privateKeyArmored: string,
+  senderPublicKey?: string
+): Promise<{ content: string; verified: boolean }> {
   if (!privateKeyArmored || !encryptedMessage.includes("-----BEGIN PGP MESSAGE-----")) {
-    return encryptedMessage;
+    return { content: encryptedMessage, verified: false };
   }
   
   try {
@@ -144,15 +157,36 @@ export async function decryptMessage(
       armoredMessage: encryptedMessage,
     });
 
-    const { data: decrypted } = await openpgp.decrypt({
+    const decryptOptions: {
+      message: openpgp.Message<openpgp.MaybeStream<openpgp.Data>>;
+      decryptionKeys: openpgp.PrivateKey;
+      verificationKeys?: openpgp.Key;
+    } = {
       message,
       decryptionKeys: privateKey,
-    });
+    };
+    
+    if (senderPublicKey) {
+      const publicKey = await openpgp.readKey({ armoredKey: senderPublicKey });
+      decryptOptions.verificationKeys = publicKey;
+    }
 
-    return decrypted as string;
+    const { data: decrypted, signatures } = await openpgp.decrypt(decryptOptions);
+    
+    let verified = false;
+    if (signatures && signatures.length > 0 && senderPublicKey) {
+      try {
+        await signatures[0].verified;
+        verified = true;
+      } catch {
+        verified = false;
+      }
+    }
+
+    return { content: decrypted as string, verified };
   } catch (error) {
     console.error("Decryption error:", error);
-    return encryptedMessage;
+    return { content: encryptedMessage, verified: false };
   }
 }
 

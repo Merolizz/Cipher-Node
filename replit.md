@@ -33,8 +33,13 @@ Preferred communication style: Simple, everyday language.
 
 ### Encryption
 - **Library**: openpgp.js for PGP/GPG-compatible encryption
-- **Message Encryption**: AES-256 + RSA end-to-end encryption
+- **Message Encryption**: AES-256 + RSA end-to-end encryption with digital signatures
 - **Key Storage**: Private keys stored locally in AsyncStorage, never transmitted
+- **Signature Verification**: Messages are signed on send and verified on receive; unverified messages show warning icon
+- **Storage Security**: 
+  - Sent messages store plaintext (for sender display) and encrypted payload
+  - Received messages store encrypted payload only, decrypted at render time
+  - Message objects are cloned before UI consumption to prevent mutations leaking to storage
 
 ### Database Schema
 - Drizzle ORM configured for PostgreSQL (schema exists but not actively used for core messaging)
