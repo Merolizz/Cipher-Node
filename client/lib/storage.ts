@@ -224,6 +224,18 @@ export async function deleteChat(contactId: string): Promise<void> {
   await AsyncStorage.setItem(CHATS_KEY, JSON.stringify(filtered));
 }
 
+export async function deleteMessage(contactId: string, messageId: string): Promise<void> {
+  const chats = await getChats();
+  const chat = chats.find((c) => c.contactId === contactId);
+  if (chat) {
+    chat.messages = chat.messages.filter((m) => m.id !== messageId);
+    if (chat.messages.length > 0) {
+      chat.lastMessageAt = chat.messages[chat.messages.length - 1].timestamp;
+    }
+    await AsyncStorage.setItem(CHATS_KEY, JSON.stringify(chats));
+  }
+}
+
 export async function deleteContactAndChat(contactId: string): Promise<void> {
   await deleteChat(contactId);
   await removeContact(contactId);

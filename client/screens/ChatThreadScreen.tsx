@@ -28,8 +28,11 @@ import {
   getSettings,
   calculateExpiresAt,
   cleanupExpiredMessagesForChat,
+  deleteMessage,
   type Message,
 } from "@/lib/storage";
+import ActionSheet, { type ActionSheetOption } from "@/components/ActionSheet";
+import * as Clipboard from "expo-clipboard";
 import { encryptMessage, decryptMessage, type Contact, type UserIdentity } from "@/lib/crypto";
 import { sendMessage as socketSendMessage, onMessage } from "@/lib/socket";
 import type { ChatsStackParamList } from "@/navigation/ChatsStackNavigator";
@@ -44,6 +47,7 @@ interface MessageBubbleProps {
   currentTime: number;
   identity: UserIdentity | null;
   contact: Contact | null;
+  onLongPress: (message: Message, displayContent: string) => void;
 }
 
 function formatRemainingTime(expiresAt: number, now: number): string {
@@ -59,9 +63,16 @@ function formatRemainingTime(expiresAt: number, now: number): string {
   return `${days}d`;
 }
 
-function MessageBubble({ message, isMine, currentTime, identity, contact }: MessageBubbleProps) {
+function MessageBubble({ message, isMine, currentTime, identity, contact, onLongPress }: MessageBubbleProps) {
   const [displayContent, setDisplayContent] = useState(message.content);
   const [verified, setVerified] = useState<boolean | null>(null);
+
+  const handleLongPress = () => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    onLongPress(message, displayContent);
+  };
 
   useEffect(() => {
     const decrypt = async () => {
@@ -100,7 +111,9 @@ function MessageBubble({ message, isMine, currentTime, identity, contact }: Mess
   };
 
   return (
-    <View
+    <Pressable
+      onLongPress={handleLongPress}
+      delayLongPress={500}
       style={[
         styles.messageBubble,
         isMine ? styles.messageBubbleMine : styles.messageBubbleTheirs,
@@ -155,7 +168,7 @@ function MessageBubble({ message, isMine, currentTime, identity, contact }: Mess
           {formatTime(message.timestamp)}
         </ThemedText>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -173,6 +186,8 @@ export default function ChatThreadScreen() {
   const [messageTimer, setMessageTimer] = useState(0);
   const [currentTime, setCurrentTime] = useState(Date.now());
   const flatListRef = useRef<FlatList>(null);
+  const [actionSheetVisible, setActionSheetVisible] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState<{ message: Message; displayContent: string } | null>(null);
 
   useEffect(() => {
     const tickerInterval = setInterval(() => setCurrentTime(Date.now()), 1000);
@@ -285,6 +300,43 @@ export default function ChatThreadScreen() {
     }
   }, [inputText, identity, contact, contactId, messageTimer]);
 
+  const handleMessageLongPress = useCallback((message: Message, displayContent: string) => {
+    setSelectedMessage({ message, displayContent });
+    setActionSheetVisible(true);
+  }, []);
+
+  const handleCopyMessage = useCallback(async () => {
+    if (selectedMessage) {
+      await Clipboard.setStringAsync(selectedMessage.displayContent);
+    }
+  }, [selectedMessage]);
+
+  const handleDeleteMessage = useCallback(async () => {
+    if (selectedMessage) {
+      await deleteMessage(contactId, selectedMessage.message.id);
+      setMessages((prev) => prev.filter((m) => m.id !== selectedMessage.message.id));
+    }
+  }, [selectedMessage, contactId]);
+
+  const getActionSheetOptions = useCallback((): ActionSheetOption[] => {
+    return [
+      {
+        text: "Copy",
+        onPress: handleCopyMessage,
+      },
+      {
+        text: "Delete",
+        onPress: handleDeleteMessage,
+        style: "destructive",
+      },
+      {
+        text: "Cancel",
+        onPress: () => {},
+        style: "cancel",
+      },
+    ];
+  }, [handleCopyMessage, handleDeleteMessage]);
+
   const bottomPadding = Math.max(insets.bottom, Spacing.md);
 
   return (
@@ -306,6 +358,7 @@ export default function ChatThreadScreen() {
               currentTime={currentTime}
               identity={identity}
               contact={contact}
+              onLongPress={handleMessageLongPress}
             />
           )}
           contentContainerStyle={[
@@ -356,6 +409,12 @@ export default function ChatThreadScreen() {
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+      
+      <ActionSheet
+        visible={actionSheetVisible}
+        onClose={() => setActionSheetVisible(false)}
+        options={getActionSheetOptions()}
+      />
     </ThemedView>
   );
 }
