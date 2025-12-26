@@ -33,6 +33,7 @@ import {
 } from "@/lib/storage";
 import ActionSheet, { type ActionSheetOption } from "@/components/ActionSheet";
 import * as Clipboard from "expo-clipboard";
+import * as Sharing from "expo-sharing";
 import { encryptMessage, decryptMessage, type Contact, type UserIdentity } from "@/lib/crypto";
 import { sendMessage as socketSendMessage, onMessage } from "@/lib/socket";
 import type { ChatsStackParamList } from "@/navigation/ChatsStackNavigator";
@@ -318,11 +319,27 @@ export default function ChatThreadScreen() {
     }
   }, [selectedMessage, contactId]);
 
+  const handleShareMessage = useCallback(async () => {
+    if (selectedMessage) {
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(`data:text/plain;base64,${btoa(selectedMessage.displayContent)}`, {
+          mimeType: "text/plain",
+          dialogTitle: "Share Message",
+        });
+      }
+    }
+  }, [selectedMessage]);
+
   const getActionSheetOptions = useCallback((): ActionSheetOption[] => {
     return [
       {
         text: "Copy",
         onPress: handleCopyMessage,
+      },
+      {
+        text: "Share",
+        onPress: handleShareMessage,
       },
       {
         text: "Delete",
@@ -335,7 +352,7 @@ export default function ChatThreadScreen() {
         style: "cancel",
       },
     ];
-  }, [handleCopyMessage, handleDeleteMessage]);
+  }, [handleCopyMessage, handleShareMessage, handleDeleteMessage]);
 
   const bottomPadding = Math.max(insets.bottom, Spacing.md);
 

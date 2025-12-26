@@ -22,6 +22,7 @@ import {
   getActiveChats,
   getActiveGroups,
   getContacts,
+  getChats,
   archiveChat,
   archiveGroup,
   deleteChat,
@@ -188,10 +189,11 @@ export default function ChatsListScreen() {
   };
 
   const loadData = useCallback(async () => {
-    const [chatsData, groupsData, contactsData] = await Promise.all([
+    const [chatsData, groupsData, contactsData, allChatsData] = await Promise.all([
       getActiveChats(),
       getActiveGroups(),
       getContacts(),
+      getChats(),
     ]);
     setContacts(contactsData);
 
@@ -204,7 +206,7 @@ export default function ChatsListScreen() {
     }));
 
     const contactsWithoutChats = contactsData.filter(
-      (contact) => !chatsData.some((chat) => chat.contactId === contact.id)
+      (contact) => !allChatsData.some((chat) => chat.contactId === contact.id)
     );
     const contactAsChats: ListItem[] = contactsWithoutChats.map((contact) => ({
       contactId: contact.id,
