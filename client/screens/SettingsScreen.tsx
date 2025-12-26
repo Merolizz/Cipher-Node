@@ -1,21 +1,25 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   ScrollView,
   TextInput,
   StyleSheet,
   Pressable,
+  Switch,
+  Platform,
+  Alert,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
+import * as LocalAuthentication from "expo-local-authentication";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius, Fonts } from "@/constants/theme";
 import { useIdentity } from "@/hooks/useIdentity";
-import { getSettings, updateSettings } from "@/lib/storage";
+import { getSettings, updateSettings, getPrivacySettings, updatePrivacySettings, type PrivacySettings } from "@/lib/storage";
 import type { SettingsStackParamList } from "@/navigation/SettingsStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<SettingsStackParamList, "Settings">;
@@ -64,12 +68,24 @@ export default function SettingsScreen() {
 
   const [displayNameInput, setDisplayNameInput] = useState("");
   const [defaultTimer, setDefaultTimer] = useState(0);
+  const [privacySettings, setPrivacySettings] = useState<PrivacySettings>({
+    screenProtection: false,
+    biometricLock: false,
+    autoMetadataScrubbing: true,
+    steganographyMode: false,
+    ghostMode: false,
+    p2pOnlyMode: false,
+    lowPowerMode: false,
+  });
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
 
   useEffect(() => {
     if (identity?.displayName) {
       setDisplayNameInput(identity.displayName);
     }
     getSettings().then((s) => setDefaultTimer(s.defaultMessageTimer));
+    getPrivacySettings().then(setPrivacySettings);
+    LocalAuthentication.hasHardwareAsync().then(setBiometricAvailable);
   }, [identity]);
 
   const handleDisplayNameChange = async () => {
@@ -78,6 +94,24 @@ export default function SettingsScreen() {
       await updateSettings({ displayName: displayNameInput });
     }
   };
+
+  const handleToggle = useCallback(async (key: keyof PrivacySettings, value: boolean) => {
+    if (key === "biometricLock" && value) {
+      if (Platform.OS === "web") {
+        Alert.alert("Biometrik Kilit", "Bu ozellik sadece mobil cihazlarda kullanilabilir.");
+        return;
+      }
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: "Biyometrik kilidi etkinlestirmek icin dogrulayin",
+        fallbackLabel: "Sifre kullan",
+      });
+      if (!result.success) {
+        return;
+      }
+    }
+    setPrivacySettings((prev) => ({ ...prev, [key]: value }));
+    await updatePrivacySettings({ [key]: value });
+  }, []);
 
   const timerLabels: Record<number, string> = {
     0: "Off",
@@ -122,48 +156,152 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Privacy</ThemedText>
+          <ThemedText style={styles.sectionTitle}>Gizlilik</ThemedText>
           <View style={styles.sectionContent}>
             <SettingsRow
               icon="clock"
-              title="Default Message Timer"
-              subtitle={timerLabels[defaultTimer] || "Off"}
+              title="Varsayilan Mesaj Zamanlayicisi"
+              subtitle={timerLabels[defaultTimer] || "Kapali"}
               onPress={() => {}}
+            />
+            <SettingsRow
+              icon="eye-off"
+              title="Ekran Korumasi"
+              subtitle="Ekran goruntusu ve kaydi engeller"
+              rightElement={
+                <Switch
+                  value={privacySettings.screenProtection}
+                  onValueChange={(v) => handleToggle("screenProtection", v)}
+                  trackColor={{ false: Colors.dark.border, true: Colors.dark.primary }}
+                  thumbColor={privacySettings.screenProtection ? Colors.dark.text : Colors.dark.textSecondary}
+                />
+              }
+            />
+            <SettingsRow
+              icon="lock"
+              title="Biyometrik Kilit"
+              subtitle={biometricAvailable ? "Parmak izi ile giris" : "Cihaz desteklemiyor"}
+              rightElement={
+                <Switch
+                  value={privacySettings.biometricLock}
+                  onValueChange={(v) => handleToggle("biometricLock", v)}
+                  trackColor={{ false: Colors.dark.border, true: Colors.dark.primary }}
+                  thumbColor={privacySettings.biometricLock ? Colors.dark.text : Colors.dark.textSecondary}
+                  disabled={!biometricAvailable && Platform.OS !== "web"}
+                />
+              }
+            />
+            <SettingsRow
+              icon="image"
+              title="Otomatik Metadata Temizligi"
+              subtitle="Medya gonderirken EXIF verilerini temizler"
+              rightElement={
+                <Switch
+                  value={privacySettings.autoMetadataScrubbing}
+                  onValueChange={(v) => handleToggle("autoMetadataScrubbing", v)}
+                  trackColor={{ false: Colors.dark.border, true: Colors.dark.primary }}
+                  thumbColor={privacySettings.autoMetadataScrubbing ? Colors.dark.text : Colors.dark.textSecondary}
+                />
+              }
             />
           </View>
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Network</ThemedText>
+          <ThemedText style={styles.sectionTitle}>Guvenlik ve Gizlilik</ThemedText>
+          <View style={styles.sectionContent}>
+            <SettingsRow
+              icon="layers"
+              title="Steganografi Modu"
+              subtitle="Mesajlari gorsellere gizleyerek gonderir"
+              rightElement={
+                <Switch
+                  value={privacySettings.steganographyMode}
+                  onValueChange={(v) => handleToggle("steganographyMode", v)}
+                  trackColor={{ false: Colors.dark.border, true: Colors.dark.secondary }}
+                  thumbColor={privacySettings.steganographyMode ? Colors.dark.text : Colors.dark.textSecondary}
+                />
+              }
+            />
+            <SettingsRow
+              icon="user-x"
+              title="Hayalet Modu"
+              subtitle="Yaziyor ve okundu bilgisini gizler"
+              rightElement={
+                <Switch
+                  value={privacySettings.ghostMode}
+                  onValueChange={(v) => handleToggle("ghostMode", v)}
+                  trackColor={{ false: Colors.dark.border, true: Colors.dark.secondary }}
+                  thumbColor={privacySettings.ghostMode ? Colors.dark.text : Colors.dark.textSecondary}
+                />
+              }
+            />
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText style={styles.sectionTitle}>Performans</ThemedText>
+          <View style={styles.sectionContent}>
+            <SettingsRow
+              icon="wifi"
+              title="Sadece P2P Modu"
+              subtitle="Relay sunucularini devre disi birakir"
+              rightElement={
+                <Switch
+                  value={privacySettings.p2pOnlyMode}
+                  onValueChange={(v) => handleToggle("p2pOnlyMode", v)}
+                  trackColor={{ false: Colors.dark.border, true: Colors.dark.warning }}
+                  thumbColor={privacySettings.p2pOnlyMode ? Colors.dark.text : Colors.dark.textSecondary}
+                />
+              }
+            />
+            <SettingsRow
+              icon="battery"
+              title="Dusuk Guc Modu"
+              subtitle="Animasyonlari ve UI efektlerini kapatir"
+              rightElement={
+                <Switch
+                  value={privacySettings.lowPowerMode}
+                  onValueChange={(v) => handleToggle("lowPowerMode", v)}
+                  trackColor={{ false: Colors.dark.border, true: Colors.dark.warning }}
+                  thumbColor={privacySettings.lowPowerMode ? Colors.dark.text : Colors.dark.textSecondary}
+                />
+              }
+            />
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText style={styles.sectionTitle}>Ag</ThemedText>
           <View style={styles.sectionContent}>
             <SettingsRow
               icon="server"
-              title="Server Settings"
-              subtitle="Configure relay server"
+              title="Sunucu Ayarlari"
+              subtitle="Relay sunucusunu yapilandir"
               onPress={() => navigation.navigate("NetworkSettings")}
             />
           </View>
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Security</ThemedText>
+          <ThemedText style={styles.sectionTitle}>Guvenlik</ThemedText>
           <View style={styles.sectionContent}>
             <SettingsRow
               icon="key"
-              title="Key Management"
-              subtitle="Export or regenerate keys"
+              title="Anahtar Yonetimi"
+              subtitle="Anahtarlari disa aktar veya yeniden olustur"
               onPress={() => navigation.navigate("SecuritySettings")}
             />
           </View>
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>About</ThemedText>
+          <ThemedText style={styles.sectionTitle}>Hakkinda</ThemedText>
           <View style={styles.sectionContent}>
             <SettingsRow
               icon="info"
-              title="About CipherNode"
-              subtitle="Version, licenses, source"
+              title="CipherNode Hakkinda"
+              subtitle="Surum, lisanslar, kaynak kodu"
               onPress={() => navigation.navigate("About")}
             />
           </View>

@@ -54,11 +54,33 @@ export interface AppSettings {
   displayName: string;
 }
 
+export interface PrivacySettings {
+  screenProtection: boolean;
+  biometricLock: boolean;
+  autoMetadataScrubbing: boolean;
+  steganographyMode: boolean;
+  ghostMode: boolean;
+  p2pOnlyMode: boolean;
+  lowPowerMode: boolean;
+}
+
 const DEFAULT_SETTINGS: AppSettings = {
   serverUrl: "",
   defaultMessageTimer: 0,
   displayName: "",
 };
+
+const DEFAULT_PRIVACY_SETTINGS: PrivacySettings = {
+  screenProtection: false,
+  biometricLock: false,
+  autoMetadataScrubbing: true,
+  steganographyMode: false,
+  ghostMode: false,
+  p2pOnlyMode: false,
+  lowPowerMode: false,
+};
+
+const PRIVACY_SETTINGS_KEY = "@ciphernode/privacy_settings";
 
 export async function hasCompletedOnboarding(): Promise<boolean> {
   try {
@@ -340,6 +362,27 @@ export async function updateSettings(
   const current = await getSettings();
   await AsyncStorage.setItem(
     SETTINGS_KEY,
+    JSON.stringify({ ...current, ...updates })
+  );
+}
+
+export async function getPrivacySettings(): Promise<PrivacySettings> {
+  try {
+    const stored = await AsyncStorage.getItem(PRIVACY_SETTINGS_KEY);
+    return stored
+      ? { ...DEFAULT_PRIVACY_SETTINGS, ...JSON.parse(stored) }
+      : DEFAULT_PRIVACY_SETTINGS;
+  } catch {
+    return DEFAULT_PRIVACY_SETTINGS;
+  }
+}
+
+export async function updatePrivacySettings(
+  updates: Partial<PrivacySettings>
+): Promise<void> {
+  const current = await getPrivacySettings();
+  await AsyncStorage.setItem(
+    PRIVACY_SETTINGS_KEY,
     JSON.stringify({ ...current, ...updates })
   );
 }
