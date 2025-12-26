@@ -20,8 +20,8 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius, Fonts } from "@/constants/theme";
 import { useIdentity } from "@/hooks/useIdentity";
-import { getSettings, updateSettings, getPrivacySettings, updatePrivacySettings, setLanguage, type PrivacySettings } from "@/lib/storage";
-import { SUPPORTED_LANGUAGES, type Language } from "@/constants/language";
+import { getSettings, updateSettings, getPrivacySettings, updatePrivacySettings, setLanguage as saveLanguage, type PrivacySettings } from "@/lib/storage";
+import { SUPPORTED_LANGUAGES, type Language, useLanguage } from "@/constants/language";
 import type { SettingsStackParamList } from "@/navigation/SettingsStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<SettingsStackParamList, "Settings">;
@@ -67,6 +67,7 @@ export default function SettingsScreen() {
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
   const { identity, setDisplayName } = useIdentity();
+  const { language: currentLanguage, setLanguage: setContextLanguage } = useLanguage();
 
   const [displayNameInput, setDisplayNameInput] = useState("");
   const [defaultTimer, setDefaultTimer] = useState(0);
@@ -80,7 +81,6 @@ export default function SettingsScreen() {
     lowPowerMode: false,
   });
   const [biometricAvailable, setBiometricAvailable] = useState(false);
-  const [currentLanguage, setCurrentLanguage] = useState<Language>("tr");
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showTimerModal, setShowTimerModal] = useState(false);
 
@@ -90,7 +90,6 @@ export default function SettingsScreen() {
     }
     getSettings().then((s) => {
       setDefaultTimer(s.defaultMessageTimer);
-      setCurrentLanguage(s.language);
     });
     getPrivacySettings().then(setPrivacySettings);
     LocalAuthentication.hasHardwareAsync().then(setBiometricAvailable);
@@ -142,8 +141,8 @@ export default function SettingsScreen() {
   };
 
   const handleLanguageChange = async (lang: Language) => {
-    setCurrentLanguage(lang);
-    await setLanguage(lang);
+    setContextLanguage(lang);
+    await saveLanguage(lang);
     setShowLanguageModal(false);
   };
 

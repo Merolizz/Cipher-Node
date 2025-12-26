@@ -8,6 +8,7 @@ import AddContactScreen from "@/screens/AddContactScreen";
 import SettingsStackNavigator from "@/navigation/SettingsStackNavigator";
 import { Colors, Spacing } from "@/constants/theme";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
+import { useLanguage } from "@/constants/language";
 
 export type MainTabParamList = {
   ChatsTab: undefined;
@@ -19,6 +20,7 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 
 export default function MainTabNavigator() {
   const screenOptions = useScreenOptions();
+  const { language } = useLanguage();
 
   return (
     <Tab.Navigator
@@ -51,7 +53,7 @@ export default function MainTabNavigator() {
         name="ChatsTab"
         component={ChatsStackNavigator}
         options={{
-          title: "Chats",
+          title: language === "tr" ? "Sohbetler" : "Chats",
           tabBarIcon: ({ color, size }) => (
             <Feather name="message-circle" size={size} color={color} />
           ),
@@ -62,8 +64,8 @@ export default function MainTabNavigator() {
         component={AddContactScreen}
         options={{
           ...screenOptions,
-          title: "Add",
-          headerTitle: "Add Contact",
+          title: language === "tr" ? "Ekle" : "Add",
+          headerTitle: language === "tr" ? "Kişi Ekle" : "Add Contact",
           headerShown: true,
           tabBarIcon: ({ color, size }) => (
             <View
@@ -81,7 +83,7 @@ export default function MainTabNavigator() {
         name="SettingsTab"
         component={SettingsStackNavigator}
         options={{
-          title: "Settings",
+          title: language === "tr" ? "Ayarlar" : "Settings",
           tabBarIcon: ({ color, size }) => (
             <Feather name="settings" size={size} color={color} />
           ),

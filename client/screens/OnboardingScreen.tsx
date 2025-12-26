@@ -20,6 +20,7 @@ import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { setOnboardingComplete } from "@/lib/storage";
+import { useLanguage } from "@/constants/language";
 
 const { width } = Dimensions.get("window");
 
@@ -30,45 +31,50 @@ interface SlideData {
   color: string;
 }
 
-const slides: SlideData[] = [
-  {
-    icon: "shield",
-    title: "End-to-End Encrypted",
-    description:
-      "Your messages are secured with military-grade encryption. Only you and your recipient can read them.",
-    color: Colors.dark.primary,
-  },
-  {
-    icon: "user-x",
-    title: "No Account Required",
-    description:
-      "No phone number, no email, no personal data. Your identity is based on cryptographic keys stored only on your device.",
-    color: Colors.dark.secondary,
-  },
-  {
-    icon: "users",
-    title: "Group Chats",
-    description:
-      "Create encrypted group conversations with your contacts. All messages stay private and secure.",
-    color: Colors.dark.success,
-  },
-  {
-    icon: "server",
-    title: "Self-Hostable",
-    description:
-      "Run your own relay server for maximum privacy. No logs, no tracking, complete control.",
-    color: Colors.dark.warning,
-  },
-];
-
 interface OnboardingScreenProps {
   onComplete: () => void;
 }
 
 export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const insets = useSafeAreaInsets();
+  const { language } = useLanguage();
   const [currentIndex, setCurrentIndex] = useState(0);
   const progress = useSharedValue(0);
+
+  const slides: SlideData[] = [
+    {
+      icon: "shield",
+      title: language === "tr" ? "Uçtan Uca Şifreli" : "End-to-End Encrypted",
+      description: language === "tr" 
+        ? "Mesajlarınız askeri seviye şifreleme ile güvenli. Sadece siz ve alıcı okuyabilir."
+        : "Your messages are secured with military-grade encryption. Only you and your recipient can read them.",
+      color: Colors.dark.primary,
+    },
+    {
+      icon: "user-x",
+      title: language === "tr" ? "Hesap Gerekmez" : "No Account Required",
+      description: language === "tr"
+        ? "Telefon numarası, e-posta, kişisel veri yok. Kimlik sadece cihazınızda saklanan kriptografik anahtarlara dayanır."
+        : "No phone number, no email, no personal data. Your identity is based on cryptographic keys stored only on your device.",
+      color: Colors.dark.secondary,
+    },
+    {
+      icon: "users",
+      title: language === "tr" ? "Grup Sohbetleri" : "Group Chats",
+      description: language === "tr"
+        ? "Kişilerinizle şifreli grup konuşmaları oluşturun. Tüm mesajlar gizli ve güvenli kalır."
+        : "Create encrypted group conversations with your contacts. All messages stay private and secure.",
+      color: Colors.dark.success,
+    },
+    {
+      icon: "server",
+      title: language === "tr" ? "Kendi Sunucunuzu Barındırın" : "Self-Hostable",
+      description: language === "tr"
+        ? "Maksimum gizlilik için kendi relay sunucunuzu çalıştırın. Kayıt yok, izleme yok, tam kontrol."
+        : "Run your own relay server for maximum privacy. No logs, no tracking, complete control.",
+      color: Colors.dark.warning,
+    },
+  ];
 
   const handleNext = async () => {
     if (Platform.OS !== "web") {
@@ -115,7 +121,9 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     <View style={[styles.container, { paddingTop: insets.top + Spacing.xl }]}>
       <View style={styles.header}>
         <Pressable onPress={handleSkip} style={styles.skipButton}>
-          <ThemedText style={styles.skipText}>Skip</ThemedText>
+          <ThemedText style={styles.skipText}>
+            {language === "tr" ? "Atla" : "Skip"}
+          </ThemedText>
         </Pressable>
       </View>
 
@@ -153,7 +161,9 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
           ]}
         >
           <ThemedText style={styles.nextButtonText}>
-            {currentIndex === slides.length - 1 ? "Get Started" : "Next"}
+            {currentIndex === slides.length - 1 
+              ? (language === "tr" ? "Başla" : "Get Started")
+              : (language === "tr" ? "İleri" : "Next")}
           </ThemedText>
           <Feather
             name={currentIndex === slides.length - 1 ? "check" : "arrow-right"}

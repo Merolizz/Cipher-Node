@@ -13,12 +13,13 @@ import RootStackNavigator from "@/navigation/RootStackNavigator";
 import OnboardingScreen from "@/screens/OnboardingScreen";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { hasCompletedOnboarding, getLanguage } from "@/lib/storage";
-import { setLanguage as setAppLanguage } from "@/constants/language";
+import { LanguageContext, type Language } from "@/constants/language";
 import { Colors } from "@/constants/theme";
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [language, setLanguageState] = useState<Language>("tr");
 
   useEffect(() => {
     checkOnboarding();
@@ -26,11 +27,15 @@ export default function App() {
 
   const checkOnboarding = async () => {
     const completed = await hasCompletedOnboarding();
-    const language = await getLanguage();
-    setAppLanguage(language);
+    const savedLanguage = await getLanguage();
+    setLanguageState(savedLanguage);
     setShowOnboarding(!completed);
     setIsLoading(false);
   };
+
+  const handleSetLanguage = useCallback((lang: Language) => {
+    setLanguageState(lang);
+  }, []);
 
   const handleOnboardingComplete = useCallback(() => {
     setShowOnboarding(false);
@@ -50,14 +55,16 @@ export default function App() {
         <SafeAreaProvider>
           <GestureHandlerRootView style={styles.root}>
             <KeyboardProvider>
-              {showOnboarding ? (
-                <OnboardingScreen onComplete={handleOnboardingComplete} />
-              ) : (
-                <NavigationContainer>
-                  <RootStackNavigator />
-                </NavigationContainer>
-              )}
-              <StatusBar style="light" />
+              <LanguageContext.Provider value={{ language, setLanguage: handleSetLanguage }}>
+                {showOnboarding ? (
+                  <OnboardingScreen onComplete={handleOnboardingComplete} />
+                ) : (
+                  <NavigationContainer>
+                    <RootStackNavigator />
+                  </NavigationContainer>
+                )}
+                <StatusBar style="light" />
+              </LanguageContext.Provider>
             </KeyboardProvider>
           </GestureHandlerRootView>
         </SafeAreaProvider>
