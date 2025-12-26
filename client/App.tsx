@@ -12,7 +12,8 @@ import { queryClient } from "@/lib/query-client";
 import RootStackNavigator from "@/navigation/RootStackNavigator";
 import OnboardingScreen from "@/screens/OnboardingScreen";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { hasCompletedOnboarding } from "@/lib/storage";
+import { hasCompletedOnboarding, getLanguage } from "@/lib/storage";
+import { setLanguage as setAppLanguage } from "@/constants/language";
 import { Colors } from "@/constants/theme";
 
 export default function App() {
@@ -25,6 +26,8 @@ export default function App() {
 
   const checkOnboarding = async () => {
     const completed = await hasCompletedOnboarding();
+    const language = await getLanguage();
+    setAppLanguage(language);
     setShowOnboarding(!completed);
     setIsLoading(false);
   };

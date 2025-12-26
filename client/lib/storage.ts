@@ -6,6 +6,7 @@ const CHATS_KEY = "@ciphernode/chats";
 const GROUPS_KEY = "@ciphernode/groups";
 const SETTINGS_KEY = "@ciphernode/settings";
 const ONBOARDING_KEY = "@ciphernode/onboarding";
+const LANGUAGE_KEY = "@ciphernode/language";
 
 export interface Message {
   id: string;
@@ -52,6 +53,7 @@ export interface AppSettings {
   serverUrl: string;
   defaultMessageTimer: number;
   displayName: string;
+  language: "tr" | "en";
 }
 
 export interface PrivacySettings {
@@ -68,6 +70,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   serverUrl: "",
   defaultMessageTimer: 0,
   displayName: "",
+  language: "tr",
 };
 
 const DEFAULT_PRIVACY_SETTINGS: PrivacySettings = {
@@ -387,6 +390,21 @@ export async function updatePrivacySettings(
   );
 }
 
+export async function getLanguage(): Promise<"tr" | "en"> {
+  try {
+    const stored = await AsyncStorage.getItem(LANGUAGE_KEY);
+    return (stored as "tr" | "en") || "tr";
+  } catch {
+    return "tr";
+  }
+}
+
+export async function setLanguage(language: "tr" | "en"): Promise<void> {
+  await AsyncStorage.setItem(LANGUAGE_KEY, language);
+  const current = await getSettings();
+  await updateSettings({ language });
+}
+
 export async function clearAllData(): Promise<void> {
   await AsyncStorage.multiRemove([
     CONTACTS_KEY,
@@ -394,6 +412,7 @@ export async function clearAllData(): Promise<void> {
     GROUPS_KEY,
     SETTINGS_KEY,
     ONBOARDING_KEY,
+    LANGUAGE_KEY,
     "@ciphernode/identity",
   ]);
 }

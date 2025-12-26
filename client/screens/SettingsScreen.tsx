@@ -8,6 +8,7 @@ import {
   Switch,
   Platform,
   Alert,
+  Modal,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -19,7 +20,8 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius, Fonts } from "@/constants/theme";
 import { useIdentity } from "@/hooks/useIdentity";
-import { getSettings, updateSettings, getPrivacySettings, updatePrivacySettings, type PrivacySettings } from "@/lib/storage";
+import { getSettings, updateSettings, getPrivacySettings, updatePrivacySettings, setLanguage, type PrivacySettings } from "@/lib/storage";
+import { SUPPORTED_LANGUAGES, type Language } from "@/constants/language";
 import type { SettingsStackParamList } from "@/navigation/SettingsStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<SettingsStackParamList, "Settings">;
@@ -78,12 +80,17 @@ export default function SettingsScreen() {
     lowPowerMode: false,
   });
   const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [currentLanguage, setCurrentLanguage] = useState<Language>("tr");
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
 
   useEffect(() => {
     if (identity?.displayName) {
       setDisplayNameInput(identity.displayName);
     }
-    getSettings().then((s) => setDefaultTimer(s.defaultMessageTimer));
+    getSettings().then((s) => {
+      setDefaultTimer(s.defaultMessageTimer);
+      setCurrentLanguage(s.language);
+    });
     getPrivacySettings().then(setPrivacySettings);
     LocalAuthentication.hasHardwareAsync().then(setBiometricAvailable);
   }, [identity]);
@@ -114,12 +121,18 @@ export default function SettingsScreen() {
   }, []);
 
   const timerLabels: Record<number, string> = {
-    0: "Off",
-    30: "30 seconds",
-    60: "1 minute",
-    300: "5 minutes",
-    3600: "1 hour",
-    86400: "1 day",
+    0: currentLanguage === "tr" ? "Kapali" : "Off",
+    30: currentLanguage === "tr" ? "30 saniye" : "30 seconds",
+    60: currentLanguage === "tr" ? "1 dakika" : "1 minute",
+    300: currentLanguage === "tr" ? "5 dakika" : "5 minutes",
+    3600: currentLanguage === "tr" ? "1 saat" : "1 hour",
+    86400: currentLanguage === "tr" ? "1 gun" : "1 day",
+  };
+
+  const handleLanguageChange = async (lang: Language) => {
+    setCurrentLanguage(lang);
+    await setLanguage(lang);
+    setShowLanguageModal(false);
   };
 
   return (
@@ -272,19 +285,74 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Ag</ThemedText>
+          <ThemedText style={styles.sectionTitle}>
+            {currentLanguage === "tr" ? "Dil" : "Language"}
+          </ThemedText>
+          <View style={styles.sectionContent}>
+            <SettingsRow
+              icon="globe"
+              title={currentLanguage === "tr" ? "Dili Degistir" : "Change Language"}
+              subtitle={SUPPORTED_LANGUAGES[currentLanguage]}
+              onPress={() => setShowLanguageModal(true)}
+            />
+          </View>
+        </View>
+
+        <Modal visible={showLanguageModal} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <ThemedText style={styles.modalTitle}>
+                {currentLanguage === "tr" ? "Dil Secin" : "Select Language"}
+              </ThemedText>
+              {(Object.keys(SUPPORTED_LANGUAGES) as Language[]).map((lang) => (
+                <Pressable
+                  key={lang}
+                  onPress={() => handleLanguageChange(lang)}
+                  style={[
+                    styles.languageOption,
+                    currentLanguage === lang && styles.languageOptionSelected,
+                  ]}
+                >
+                  <ThemedText
+                    style={[
+                      styles.languageOptionText,
+                      currentLanguage === lang && styles.languageOptionTextSelected,
+                    ]}
+                  >
+                    {SUPPORTED_LANGUAGES[lang]}
+                  </ThemedText>
+                </Pressable>
+              ))}
+              <Pressable
+                onPress={() => setShowLanguageModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <ThemedText style={styles.modalCloseButtonText}>
+                  {currentLanguage === "tr" ? "Kapat" : "Close"}
+                </ThemedText>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+
+        <View style={styles.section}>
+          <ThemedText style={styles.sectionTitle}>
+            {currentLanguage === "tr" ? "Ag" : "Network"}
+          </ThemedText>
           <View style={styles.sectionContent}>
             <SettingsRow
               icon="server"
-              title="Sunucu Ayarlari"
-              subtitle="Relay sunucusunu yapilandir"
+              title={currentLanguage === "tr" ? "Sunucu Ayarlari" : "Server Settings"}
+              subtitle={currentLanguage === "tr" ? "Relay sunucusunu yapilandir" : "Configure relay server"}
               onPress={() => navigation.navigate("NetworkSettings")}
             />
           </View>
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Guvenlik</ThemedText>
+          <ThemedText style={styles.sectionTitle}>
+            {currentLanguage === "tr" ? "Guvenlik" : "Security"}
+          </ThemedText>
           <View style={styles.sectionContent}>
             <SettingsRow
               icon="key"
@@ -296,12 +364,14 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Hakkinda</ThemedText>
+          <ThemedText style={styles.sectionTitle}>
+            {currentLanguage === "tr" ? "Hakkinda" : "About"}
+          </ThemedText>
           <View style={styles.sectionContent}>
             <SettingsRow
               icon="info"
-              title="CipherNode Hakkinda"
-              subtitle="Surum, lisanslar, kaynak kodu"
+              title={currentLanguage === "tr" ? "CipherNode Hakkinda" : "About CipherNode"}
+              subtitle={currentLanguage === "tr" ? "Surum, lisanslar, kaynak kodu" : "Version, licenses, source code"}
               onPress={() => navigation.navigate("About")}
             />
           </View>
@@ -402,5 +472,54 @@ const styles = StyleSheet.create({
     color: Colors.dark.text,
     textAlign: "right",
     padding: 0,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: Colors.dark.backgroundDefault,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    width: "80%",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: Spacing.lg,
+    color: Colors.dark.text,
+  },
+  languageOption: {
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.sm,
+    backgroundColor: Colors.dark.backgroundSecondary,
+  },
+  languageOptionSelected: {
+    backgroundColor: Colors.dark.primary,
+  },
+  languageOptionText: {
+    fontSize: 16,
+    color: Colors.dark.text,
+  },
+  languageOptionTextSelected: {
+    color: Colors.dark.backgroundRoot,
+    fontWeight: "600",
+  },
+  modalCloseButton: {
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.dark.secondary,
+    marginTop: Spacing.lg,
+  },
+  modalCloseButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.dark.text,
+    textAlign: "center",
   },
 });
