@@ -5,7 +5,6 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import * as Font from "expo-font";
 
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/query-client";
@@ -21,16 +20,8 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [language, setLanguageState] = useState<Language>("tr");
-  const [fontsLoaded, setFontsLoaded] = useState(false);
 
   useEffect(() => {
-    async function loadFonts() {
-      await Font.loadAsync({
-        'Feather': require('@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Feather.ttf'),
-      });
-      setFontsLoaded(true);
-    }
-    loadFonts();
     checkOnboarding();
   }, []);
 
@@ -50,7 +41,7 @@ export default function App() {
     setShowOnboarding(false);
   }, []);
 
-  if (isLoading || !fontsLoaded) {
+  if (isLoading) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={Colors.dark.primary} />
