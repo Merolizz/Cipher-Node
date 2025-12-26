@@ -6,7 +6,7 @@ import {
   Platform,
   Alert,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, CommonActions } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { Feather } from "@expo/vector-icons";
@@ -98,7 +98,20 @@ export default function QRScannerScreen() {
       }
 
       Alert.alert(t.success, t.contactAdded, [
-        { text: t.ok, onPress: () => navigation.goBack() },
+        {
+          text: t.ok,
+          onPress: () => {
+            navigation.dispatch(
+              CommonActions.navigate({
+                name: "ChatsTab",
+                params: {
+                  screen: "ChatThread",
+                  params: { contactId: parsed.id },
+                },
+              })
+            );
+          },
+        },
       ]);
     } catch (error) {
       Alert.alert(t.invalidQR, t.invalidQRMsg, [

@@ -158,7 +158,7 @@ export async function decryptMessage(
     });
 
     const decryptOptions: {
-      message: openpgp.Message<openpgp.MaybeStream<openpgp.Data>>;
+      message: openpgp.Message<openpgp.MaybeStream<string>>;
       decryptionKeys: openpgp.PrivateKey;
       verificationKeys?: openpgp.Key;
     } = {

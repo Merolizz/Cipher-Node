@@ -7,7 +7,7 @@ import {
   Alert,
   Platform,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, CommonActions } from "@react-navigation/native";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -105,13 +105,28 @@ export default function AddContactScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
       setContactIdInput("");
-      Alert.alert(t.success, t.contactAdded);
+      Alert.alert(t.success, t.contactAdded, [
+        {
+          text: "OK",
+          onPress: () => {
+            navigation.dispatch(
+              CommonActions.navigate({
+                name: "ChatsTab",
+                params: {
+                  screen: "ChatThread",
+                  params: { contactId: parsedId },
+                },
+              })
+            );
+          },
+        },
+      ]);
     } catch (error) {
       Alert.alert(t.error, t.failedToAdd);
     } finally {
       setIsAdding(false);
     }
-  }, [contactIdInput, identity, t]);
+  }, [contactIdInput, identity, t, navigation]);
 
   if (loading) {
     return (

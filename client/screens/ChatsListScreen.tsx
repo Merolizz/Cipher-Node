@@ -284,6 +284,15 @@ export default function ChatsListScreen() {
       headerRight: () => (
         <View style={styles.headerRight}>
           <Pressable
+            onPress={() => navigation.navigate("NewChat")}
+            style={({ pressed }) => [
+              styles.headerButton,
+              pressed && styles.headerButtonPressed,
+            ]}
+          >
+            <Feather name="edit" size={20} color={Colors.dark.primary} />
+          </Pressable>
+          <Pressable
             onPress={() => navigation.navigate("ArchivedChats")}
             style={({ pressed }) => [
               styles.headerButton,
