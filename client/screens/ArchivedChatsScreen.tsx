@@ -28,6 +28,7 @@ import {
   type Group,
 } from "@/lib/storage";
 import type { ChatsStackParamList } from "@/navigation/ChatsStackNavigator";
+import { useLanguage } from "@/constants/language";
 
 type NavigationProp = NativeStackNavigationProp<ChatsStackParamList>;
 
@@ -37,9 +38,27 @@ export default function ArchivedChatsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
+  const { language } = useLanguage();
 
   const [items, setItems] = useState<ArchivedItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const t = {
+    delete: language === "tr" ? "Sil" : "Delete",
+    deleteConversation: language === "tr" 
+      ? "Bu sohbeti kalıcı olarak silmek istediğinizden emin misiniz?"
+      : "Are you sure you want to permanently delete this conversation?",
+    deleteGroup: language === "tr" 
+      ? "Bu grubu kalıcı olarak silmek istediğinizden emin misiniz?"
+      : "Are you sure you want to permanently delete this group?",
+    cancel: language === "tr" ? "İptal" : "Cancel",
+    members: language === "tr" ? "üye" : "members",
+    directMessage: language === "tr" ? "Doğrudan mesaj" : "Direct message",
+    noArchivedItems: language === "tr" ? "Arşivlenmiş Öğe Yok" : "No Archived Items",
+    archivedWillAppear: language === "tr" 
+      ? "Arşivlenmiş sohbetler ve gruplar burada görünecek"
+      : "Archived chats and groups will appear here",
+  };
 
   const loadArchivedItems = useCallback(async () => {
     setLoading(true);
@@ -96,12 +115,12 @@ export default function ArchivedChatsScreen() {
 
   const handleDelete = (item: ArchivedItem) => {
     Alert.alert(
-      "Delete",
-      `Are you sure you want to permanently delete this ${item.type === "chat" ? "conversation" : "group"}?`,
+      t.delete,
+      item.type === "chat" ? t.deleteConversation : t.deleteGroup,
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t.cancel, style: "cancel" },
         {
-          text: "Delete",
+          text: t.delete,
           style: "destructive",
           onPress: async () => {
             if (item.type === "chat") {
@@ -131,7 +150,7 @@ export default function ArchivedChatsScreen() {
           {item.type === "chat" ? item.displayName : item.name}
         </ThemedText>
         <ThemedText style={styles.itemMeta}>
-          {item.type === "group" ? `${item.members.length} members` : "Direct message"}
+          {item.type === "group" ? `${item.members.length} ${t.members}` : t.directMessage}
         </ThemedText>
       </View>
 
@@ -175,9 +194,9 @@ export default function ArchivedChatsScreen() {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Feather name="archive" size={48} color={Colors.dark.textDisabled} />
-            <ThemedText style={styles.emptyTitle}>No Archived Items</ThemedText>
+            <ThemedText style={styles.emptyTitle}>{t.noArchivedItems}</ThemedText>
             <ThemedText style={styles.emptyText}>
-              Archived chats and groups will appear here
+              {t.archivedWillAppear}
             </ThemedText>
           </View>
         }

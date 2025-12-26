@@ -63,10 +63,16 @@ export default function MainTabNavigator() {
         name="AddContactTab"
         component={AddContactScreen}
         options={{
-          ...screenOptions,
           title: language === "tr" ? "Ekle" : "Add",
           headerTitle: language === "tr" ? "Kişi Ekle" : "Add Contact",
           headerShown: true,
+          headerStyle: {
+            backgroundColor: Colors.dark.backgroundRoot,
+          },
+          headerTintColor: Colors.dark.text,
+          headerTitleStyle: {
+            fontWeight: "600" as const,
+          },
           tabBarIcon: ({ color, size }) => (
             <View
               style={[

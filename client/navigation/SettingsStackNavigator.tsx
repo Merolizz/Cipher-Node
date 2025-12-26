@@ -5,6 +5,7 @@ import NetworkSettingsScreen from "@/screens/NetworkSettingsScreen";
 import SecuritySettingsScreen from "@/screens/SecuritySettingsScreen";
 import AboutScreen from "@/screens/AboutScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
+import { useLanguage } from "@/constants/language";
 
 export type SettingsStackParamList = {
   Settings: undefined;
@@ -17,6 +18,7 @@ const Stack = createNativeStackNavigator<SettingsStackParamList>();
 
 export default function SettingsStackNavigator() {
   const screenOptions = useScreenOptions();
+  const { language } = useLanguage();
 
   return (
     <Stack.Navigator screenOptions={screenOptions}>
@@ -24,28 +26,28 @@ export default function SettingsStackNavigator() {
         name="Settings"
         component={SettingsScreen}
         options={{
-          headerTitle: "Settings",
+          headerTitle: language === "tr" ? "Ayarlar" : "Settings",
         }}
       />
       <Stack.Screen
         name="NetworkSettings"
         component={NetworkSettingsScreen}
         options={{
-          headerTitle: "Network",
+          headerTitle: language === "tr" ? "Ağ" : "Network",
         }}
       />
       <Stack.Screen
         name="SecuritySettings"
         component={SecuritySettingsScreen}
         options={{
-          headerTitle: "Security",
+          headerTitle: language === "tr" ? "Güvenlik" : "Security",
         }}
       />
       <Stack.Screen
         name="About"
         component={AboutScreen}
         options={{
-          headerTitle: "About",
+          headerTitle: language === "tr" ? "Hakkında" : "About",
         }}
       />
     </Stack.Navigator>

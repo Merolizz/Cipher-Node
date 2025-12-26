@@ -8,6 +8,7 @@ import ArchivedChatsScreen from "@/screens/ArchivedChatsScreen";
 import GroupThreadScreen from "@/screens/GroupThreadScreen";
 import GroupInfoScreen from "@/screens/GroupInfoScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
+import { useLanguage } from "@/constants/language";
 
 export type ChatsStackParamList = {
   ChatsList: undefined;
@@ -23,6 +24,7 @@ const Stack = createNativeStackNavigator<ChatsStackParamList>();
 
 export default function ChatsStackNavigator() {
   const screenOptions = useScreenOptions();
+  const { language } = useLanguage();
 
   return (
     <Stack.Navigator screenOptions={screenOptions}>
@@ -37,42 +39,42 @@ export default function ChatsStackNavigator() {
         name="ChatThread"
         component={ChatThreadScreen}
         options={{
-          headerTitle: "Chat",
+          headerTitle: language === "tr" ? "Sohbet" : "Chat",
         }}
       />
       <Stack.Screen
         name="ContactInfo"
         component={ContactInfoScreen}
         options={{
-          headerTitle: "Contact Info",
+          headerTitle: language === "tr" ? "Kişi Bilgisi" : "Contact Info",
         }}
       />
       <Stack.Screen
         name="CreateGroup"
         component={CreateGroupScreen}
         options={{
-          headerTitle: "Create Group",
+          headerTitle: language === "tr" ? "Grup Oluştur" : "Create Group",
         }}
       />
       <Stack.Screen
         name="ArchivedChats"
         component={ArchivedChatsScreen}
         options={{
-          headerTitle: "Archived",
+          headerTitle: language === "tr" ? "Arşiv" : "Archived",
         }}
       />
       <Stack.Screen
         name="GroupThread"
         component={GroupThreadScreen}
         options={{
-          headerTitle: "Group Chat",
+          headerTitle: language === "tr" ? "Grup Sohbeti" : "Group Chat",
         }}
       />
       <Stack.Screen
         name="GroupInfo"
         component={GroupInfoScreen}
         options={{
-          headerTitle: "Group Info",
+          headerTitle: language === "tr" ? "Grup Bilgisi" : "Group Info",
         }}
       />
     </Stack.Navigator>
