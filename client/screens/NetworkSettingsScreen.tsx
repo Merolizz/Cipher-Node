@@ -15,6 +15,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { Colors, Spacing, BorderRadius, Fonts } from "@/constants/theme";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { getSettings, updateSettings } from "@/lib/storage";
+import { setCustomServerUrl } from "@/lib/query-client";
 import { useLanguage } from "@/constants/language";
 
 type ServerType = "official" | "custom";
@@ -67,6 +68,7 @@ export default function NetworkSettingsScreen() {
     setServerType(type);
     if (type === "official") {
       await updateSettings({ serverUrl: "" });
+      setCustomServerUrl(null);
       setCustomUrl("");
     }
   };
@@ -85,6 +87,7 @@ export default function NetworkSettingsScreen() {
     }
 
     await updateSettings({ serverUrl: customUrl.trim() });
+    setCustomServerUrl(customUrl.trim());
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
@@ -92,14 +95,38 @@ export default function NetworkSettingsScreen() {
   };
 
   const handleTestConnection = async () => {
+    if (!customUrl.trim()) return;
+    
     setIsTesting(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      if (Platform.OS !== "web") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const testUrl = new URL("/api/health", customUrl.trim());
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      const response = await fetch(testUrl.toString(), {
+        method: "GET",
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.status === "ok") {
+          if (Platform.OS !== "web") {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          }
+          Alert.alert(t.connectionSuccess, t.serverOnline);
+        } else {
+          Alert.alert(t.connectionFailed, t.serverUnreachable);
+        }
+      } else {
+        Alert.alert(t.connectionFailed, t.serverUnreachable);
       }
-      Alert.alert(t.connectionSuccess, t.serverOnline);
-    } catch {
+    } catch (error) {
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
       Alert.alert(t.connectionFailed, t.serverUnreachable);
     } finally {
       setIsTesting(false);

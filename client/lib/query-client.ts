@@ -1,10 +1,31 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-/**
- * Gets the base URL for the Express API server (e.g., "http://localhost:3000")
- * @returns {string} The API base URL
- */
+const SETTINGS_KEY = "@ciphernode/settings";
+
+let cachedCustomServerUrl: string | null = null;
+
+export async function loadCustomServerUrl(): Promise<void> {
+  try {
+    const stored = await AsyncStorage.getItem(SETTINGS_KEY);
+    if (stored) {
+      const settings = JSON.parse(stored);
+      cachedCustomServerUrl = settings.serverUrl || null;
+    }
+  } catch {
+    cachedCustomServerUrl = null;
+  }
+}
+
+export function setCustomServerUrl(url: string | null): void {
+  cachedCustomServerUrl = url || null;
+}
+
 export function getApiUrl(): string {
+  if (cachedCustomServerUrl && cachedCustomServerUrl.trim()) {
+    return cachedCustomServerUrl.trim().replace(/\/$/, "") + "/";
+  }
+
   let host = process.env.EXPO_PUBLIC_DOMAIN;
 
   if (!host) {

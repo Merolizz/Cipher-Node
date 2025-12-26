@@ -3,6 +3,7 @@ import { createServer, type Server } from "node:http";
 import { Server as SocketIOServer } from "socket.io";
 
 interface PendingMessage {
+  id: string;
   from: string;
   to: string;
   encrypted: string;
@@ -19,7 +20,21 @@ interface GroupInfo {
 const connectedUsers = new Map<string, string>();
 const pendingMessages = new Map<string, PendingMessage[]>();
 const groups = new Map<string, GroupInfo>();
+const deliveredMessageIds = new Set<string>();
 const MESSAGE_TTL = 24 * 60 * 60 * 1000;
+const DELIVERED_IDS_TTL = 24 * 60 * 60 * 1000;
+
+function generateMessageId(): string {
+  return `srv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+function cleanupDeliveredIds() {
+  if (deliveredMessageIds.size > 100000) {
+    deliveredMessageIds.clear();
+  }
+}
+
+setInterval(cleanupDeliveredIds, 60 * 60 * 1000);
 
 function cleanupExpiredMessages() {
   const now = Date.now();
@@ -101,23 +116,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     });
 
-    socket.on("message", (data: { to: string; from: string; encrypted: string }) => {
+    socket.on("message", (data: { to: string; from: string; encrypted: string; id?: string }) => {
+      const messageId = data.id || generateMessageId();
+      
+      if (deliveredMessageIds.has(messageId)) {
+        console.log(`[Relay] Duplicate message ignored: ${messageId}`);
+        return;
+      }
+      
       const targetSocketId = connectedUsers.get(data.to);
+      const timestamp = Date.now();
 
       if (targetSocketId) {
         io.to(targetSocketId).emit("message", {
+          id: messageId,
           from: data.from,
           encrypted: data.encrypted,
-          timestamp: Date.now(),
+          timestamp,
         });
+        deliveredMessageIds.add(messageId);
         console.log(`[Relay] Message delivered: ${data.from} -> ${data.to}`);
       } else {
         const pending = pendingMessages.get(data.to) || [];
         pending.push({
+          id: messageId,
           from: data.from,
           to: data.to,
           encrypted: data.encrypted,
-          timestamp: Date.now(),
+          timestamp,
         });
         pendingMessages.set(data.to, pending);
         console.log(`[Relay] Message queued for offline user: ${data.to}`);
@@ -151,7 +177,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[Relay] User ${data.userId} left group: ${data.groupId}`);
     });
 
-    socket.on("group:message", (data: { groupId: string; from: string; encrypted: string; content: string }) => {
+    socket.on("group:message", (data: { groupId: string; from: string; encrypted: string; content: string; id?: string }) => {
+      const messageId = data.id || generateMessageId();
+      
+      if (deliveredMessageIds.has(messageId)) {
+        console.log(`[Relay] Duplicate group message ignored: ${messageId}`);
+        return;
+      }
+      
       const group = groups.get(data.groupId);
       const timestamp = Date.now();
       
@@ -161,6 +194,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const memberSocketId = connectedUsers.get(memberId);
             if (memberSocketId) {
               io.to(memberSocketId).emit("group:message", {
+                id: messageId,
                 groupId: data.groupId,
                 from: data.from,
                 encrypted: data.encrypted,
@@ -170,6 +204,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             } else {
               const pending = pendingMessages.get(memberId) || [];
               pending.push({
+                id: messageId,
                 from: data.from,
                 to: memberId,
                 encrypted: data.encrypted,
@@ -181,15 +216,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
         });
+        deliveredMessageIds.add(messageId);
         console.log(`[Relay] Group message: ${data.from} -> ${data.groupId}`);
       } else {
         io.to(data.groupId).emit("group:message", {
+          id: messageId,
           groupId: data.groupId,
           from: data.from,
           encrypted: data.encrypted,
           content: data.content,
           timestamp,
         });
+        deliveredMessageIds.add(messageId);
         console.log(`[Relay] Group message (room): ${data.from} -> ${data.groupId}`);
       }
     });
