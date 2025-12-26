@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   getOrCreateIdentity,
-  getIdentity,
   updateDisplayName,
   regenerateIdentity,
   type UserIdentity,
@@ -31,8 +30,12 @@ export function useIdentity() {
   }, [loadIdentity]);
 
   const setDisplayName = useCallback(async (name: string) => {
-    await updateDisplayName(name);
-    setIdentity((prev) => (prev ? { ...prev, displayName: name } : null));
+    try {
+      await updateDisplayName(name);
+      setIdentity((prev) => (prev ? { ...prev, displayName: name } : null));
+    } catch (err) {
+      console.error("Update display name error:", err);
+    }
   }, []);
 
   const regenerate = useCallback(async () => {
@@ -40,6 +43,8 @@ export function useIdentity() {
       setLoading(true);
       const newIdentity = await regenerateIdentity();
       setIdentity(newIdentity);
+    } catch (err) {
+      console.error("Regenerate error:", err);
     } finally {
       setLoading(false);
     }

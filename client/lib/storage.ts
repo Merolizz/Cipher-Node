@@ -36,8 +36,12 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 export async function getContacts(): Promise<Contact[]> {
-  const stored = await AsyncStorage.getItem(CONTACTS_KEY);
-  return stored ? JSON.parse(stored) : [];
+  try {
+    const stored = await AsyncStorage.getItem(CONTACTS_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function addContact(contact: Contact): Promise<void> {
@@ -61,8 +65,12 @@ export async function getContact(contactId: string): Promise<Contact | null> {
 }
 
 export async function getChats(): Promise<Chat[]> {
-  const stored = await AsyncStorage.getItem(CHATS_KEY);
-  return stored ? JSON.parse(stored) : [];
+  try {
+    const stored = await AsyncStorage.getItem(CHATS_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function getChat(contactId: string): Promise<Chat | null> {
@@ -109,8 +117,12 @@ export async function deleteChat(contactId: string): Promise<void> {
 }
 
 export async function getSettings(): Promise<AppSettings> {
-  const stored = await AsyncStorage.getItem(SETTINGS_KEY);
-  return stored ? { ...DEFAULT_SETTINGS, ...JSON.parse(stored) } : DEFAULT_SETTINGS;
+  try {
+    const stored = await AsyncStorage.getItem(SETTINGS_KEY);
+    return stored ? { ...DEFAULT_SETTINGS, ...JSON.parse(stored) } : DEFAULT_SETTINGS;
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
 }
 
 export async function updateSettings(

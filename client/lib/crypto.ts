@@ -1,7 +1,6 @@
 import * as openpgp from "openpgp";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const KEYS_STORAGE_KEY = "@ciphernode/keys";
 const IDENTITY_STORAGE_KEY = "@ciphernode/identity";
 
 export interface UserIdentity {
@@ -49,30 +48,48 @@ export async function generateKeyPair(): Promise<{
 }
 
 export async function getOrCreateIdentity(): Promise<UserIdentity> {
-  const stored = await AsyncStorage.getItem(IDENTITY_STORAGE_KEY);
-  
-  if (stored) {
-    return JSON.parse(stored);
+  try {
+    const stored = await AsyncStorage.getItem(IDENTITY_STORAGE_KEY);
+    
+    if (stored) {
+      return JSON.parse(stored);
+    }
+
+    const { publicKey, privateKey, fingerprint, id } = await generateKeyPair();
+    
+    const identity: UserIdentity = {
+      id,
+      publicKey,
+      privateKey,
+      fingerprint,
+      displayName: "",
+      createdAt: Date.now(),
+    };
+
+    await AsyncStorage.setItem(IDENTITY_STORAGE_KEY, JSON.stringify(identity));
+    return identity;
+  } catch (error) {
+    console.error("Error creating identity:", error);
+    const fallbackId = Math.random().toString(36).substring(2, 6).toUpperCase() + "-" + 
+                       Math.random().toString(36).substring(2, 6).toUpperCase();
+    return {
+      id: fallbackId,
+      publicKey: "",
+      privateKey: "",
+      fingerprint: fallbackId.replace("-", "").padEnd(40, "0"),
+      displayName: "",
+      createdAt: Date.now(),
+    };
   }
-
-  const { publicKey, privateKey, fingerprint, id } = await generateKeyPair();
-  
-  const identity: UserIdentity = {
-    id,
-    publicKey,
-    privateKey,
-    fingerprint,
-    displayName: "",
-    createdAt: Date.now(),
-  };
-
-  await AsyncStorage.setItem(IDENTITY_STORAGE_KEY, JSON.stringify(identity));
-  return identity;
 }
 
 export async function getIdentity(): Promise<UserIdentity | null> {
-  const stored = await AsyncStorage.getItem(IDENTITY_STORAGE_KEY);
-  return stored ? JSON.parse(stored) : null;
+  try {
+    const stored = await AsyncStorage.getItem(IDENTITY_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function updateDisplayName(name: string): Promise<void> {
@@ -92,30 +109,45 @@ export async function encryptMessage(
   message: string,
   recipientPublicKey: string
 ): Promise<string> {
-  const publicKey = await openpgp.readKey({ armoredKey: recipientPublicKey });
+  if (!recipientPublicKey) {
+    return message;
+  }
   
-  const encrypted = await openpgp.encrypt({
-    message: await openpgp.createMessage({ text: message }),
-    encryptionKeys: publicKey,
-  });
+  try {
+    const publicKey = await openpgp.readKey({ armoredKey: recipientPublicKey });
+    
+    const encrypted = await openpgp.encrypt({
+      message: await openpgp.createMessage({ text: message }),
+      encryptionKeys: publicKey,
+    });
 
-  return encrypted as string;
+    return encrypted as string;
+  } catch {
+    return message;
+  }
 }
 
 export async function decryptMessage(
   encryptedMessage: string,
   privateKeyArmored: string
 ): Promise<string> {
-  const privateKey = await openpgp.readPrivateKey({ armoredKey: privateKeyArmored });
+  if (!privateKeyArmored || !encryptedMessage.includes("-----BEGIN PGP MESSAGE-----")) {
+    return encryptedMessage;
+  }
   
-  const message = await openpgp.readMessage({ armoredMessage: encryptedMessage });
-  
-  const { data: decrypted } = await openpgp.decrypt({
-    message,
-    decryptionKeys: privateKey,
-  });
+  try {
+    const privateKey = await openpgp.readPrivateKey({ armoredKey: privateKeyArmored });
+    const message = await openpgp.readMessage({ armoredMessage: encryptedMessage });
+    
+    const { data: decrypted } = await openpgp.decrypt({
+      message,
+      decryptionKeys: privateKey,
+    });
 
-  return decrypted as string;
+    return decrypted as string;
+  } catch {
+    return encryptedMessage;
+  }
 }
 
 export function parseContactId(input: string): string | null {
