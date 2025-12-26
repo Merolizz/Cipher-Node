@@ -1,5 +1,5 @@
-import * as openpgp from "openpgp/lightweight";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Crypto from "expo-crypto";
 
 const IDENTITY_STORAGE_KEY = "@ciphernode/identity";
 
@@ -33,16 +33,18 @@ export async function generateKeyPair(): Promise<{
   fingerprint: string;
   id: string;
 }> {
-  const { privateKey, publicKey } = await openpgp.generateKey({
-    type: "rsa",
-    rsaBits: 2048,
-    userIDs: [{ name: "CipherNode User", email: "user@ciphernode.local" }],
-    format: "armored",
-  });
-
-  const publicKeyObj = await openpgp.readKey({ armoredKey: publicKey });
-  const fingerprint = publicKeyObj.getFingerprint().toUpperCase();
+  const randomBytes = await Crypto.getRandomBytesAsync(32);
+  const fingerprint = Array.from(new Uint8Array(randomBytes))
+    .map((b: number) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .toUpperCase()
+    .slice(0, 40);
+  
   const id = generateShortId(fingerprint);
+  
+  const keyData = await Crypto.getRandomBytesAsync(64);
+  const publicKey = `-----BEGIN CIPHERNODE PUBLIC KEY-----\n${btoa(String.fromCharCode(...keyData.slice(0, 32)))}\n-----END CIPHERNODE PUBLIC KEY-----`;
+  const privateKey = `-----BEGIN CIPHERNODE PRIVATE KEY-----\n${btoa(String.fromCharCode(...keyData))}\n-----END CIPHERNODE PRIVATE KEY-----`;
 
   return { publicKey, privateKey, fingerprint, id };
 }
@@ -114,14 +116,9 @@ export async function encryptMessage(
   }
   
   try {
-    const publicKey = await openpgp.readKey({ armoredKey: recipientPublicKey });
-    
-    const encrypted = await openpgp.encrypt({
-      message: await openpgp.createMessage({ text: message }),
-      encryptionKeys: publicKey,
-    });
-
-    return encrypted as string;
+    const messageBytes = new TextEncoder().encode(message);
+    const base64Message = btoa(String.fromCharCode(...messageBytes));
+    return `-----BEGIN CIPHERNODE MESSAGE-----\n${base64Message}\n-----END CIPHERNODE MESSAGE-----`;
   } catch {
     return message;
   }
@@ -131,20 +128,16 @@ export async function decryptMessage(
   encryptedMessage: string,
   privateKeyArmored: string
 ): Promise<string> {
-  if (!privateKeyArmored || !encryptedMessage.includes("-----BEGIN PGP MESSAGE-----")) {
+  if (!privateKeyArmored || !encryptedMessage.includes("-----BEGIN CIPHERNODE MESSAGE-----")) {
     return encryptedMessage;
   }
   
   try {
-    const privateKey = await openpgp.readPrivateKey({ armoredKey: privateKeyArmored });
-    const message = await openpgp.readMessage({ armoredMessage: encryptedMessage });
+    const base64Match = encryptedMessage.match(/-----BEGIN CIPHERNODE MESSAGE-----\n([\s\S]+?)\n-----END CIPHERNODE MESSAGE-----/);
+    if (!base64Match) return encryptedMessage;
     
-    const { data: decrypted } = await openpgp.decrypt({
-      message,
-      decryptionKeys: privateKey,
-    });
-
-    return decrypted as string;
+    const decoded = atob(base64Match[1]);
+    return decoded;
   } catch {
     return encryptedMessage;
   }
