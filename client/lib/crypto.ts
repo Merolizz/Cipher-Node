@@ -1,4 +1,4 @@
-import * as openpgp from "openpgp";
+import * as openpgp from "openpgp/lightweight";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const IDENTITY_STORAGE_KEY = "@ciphernode/identity";
