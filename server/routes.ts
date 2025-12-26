@@ -2,17 +2,31 @@ import type { Express } from "express";
 import { createServer, type Server } from "node:http";
 import { Server as SocketIOServer } from "socket.io";
 
-interface PendingMessage {
+interface QueuedMessage {
   from: string;
   to: string;
   encrypted: string;
   timestamp: number;
 }
 
-const pendingMessages = new Map<string, PendingMessage[]>();
+const messageQueue = new Map<string, QueuedMessage[]>();
 const connectedUsers = new Map<string, string>();
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", timestamp: Date.now() });
+  });
+
+  app.get("/api/stats", (_req, res) => {
+    res.json({
+      connectedUsers: connectedUsers.size,
+      queuedMessages: Array.from(messageQueue.values()).reduce(
+        (acc, msgs) => acc + msgs.length,
+        0
+      ),
+    });
+  });
+
   const httpServer = createServer(app);
 
   const io = new SocketIOServer(httpServer, {
@@ -24,84 +38,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   io.on("connection", (socket) => {
-    console.log(`[Relay] Client connected: ${socket.id}`);
+    console.log(`[Socket] Client connected: ${socket.id}`);
 
     socket.on("register", (userId: string) => {
       connectedUsers.set(userId, socket.id);
-      console.log(`[Relay] User registered: ${userId}`);
+      socket.data.userId = userId;
+      console.log(`[Socket] User registered: ${userId}`);
 
-      const pending = pendingMessages.get(userId);
-      if (pending && pending.length > 0) {
-        pending.forEach((msg) => {
+      const queued = messageQueue.get(userId);
+      if (queued && queued.length > 0) {
+        queued.forEach((msg) => {
           socket.emit("message", msg);
         });
-        pendingMessages.delete(userId);
-        console.log(`[Relay] Delivered ${pending.length} pending messages to ${userId}`);
+        messageQueue.delete(userId);
+        console.log(`[Socket] Delivered ${queued.length} queued messages to ${userId}`);
       }
     });
 
-    socket.on("message", (data: { to: string; from: string; encrypted: string }) => {
-      const { to, from, encrypted } = data;
-      const recipientSocketId = connectedUsers.get(to);
+    socket.on("message", (data: { to: string; encrypted: string }) => {
+      const from = socket.data.userId;
+      if (!from) {
+        socket.emit("error", { message: "Not registered" });
+        return;
+      }
 
-      const message: PendingMessage = {
+      const message: QueuedMessage = {
         from,
-        to,
-        encrypted,
+        to: data.to,
+        encrypted: data.encrypted,
         timestamp: Date.now(),
       };
 
+      const recipientSocketId = connectedUsers.get(data.to);
       if (recipientSocketId) {
         io.to(recipientSocketId).emit("message", message);
-        console.log(`[Relay] Message delivered: ${from} -> ${to}`);
+        console.log(`[Socket] Message relayed: ${from} -> ${data.to}`);
       } else {
-        const pending = pendingMessages.get(to) || [];
-        pending.push(message);
-        pendingMessages.set(to, pending);
-        console.log(`[Relay] Message queued: ${from} -> ${to}`);
-
-        setTimeout(() => {
-          const current = pendingMessages.get(to);
-          if (current) {
-            const filtered = current.filter((m) => m.timestamp !== message.timestamp);
-            if (filtered.length > 0) {
-              pendingMessages.set(to, filtered);
-            } else {
-              pendingMessages.delete(to);
-            }
-          }
-        }, 60000);
+        const queue = messageQueue.get(data.to) || [];
+        queue.push(message);
+        messageQueue.set(data.to, queue);
+        console.log(`[Socket] Message queued for offline user: ${data.to}`);
       }
 
-      socket.emit("message_ack", { timestamp: message.timestamp, status: "sent" });
+      socket.emit("message:sent", { to: data.to, timestamp: message.timestamp });
     });
 
     socket.on("disconnect", () => {
-      for (const [userId, socketId] of connectedUsers.entries()) {
-        if (socketId === socket.id) {
-          connectedUsers.delete(userId);
-          console.log(`[Relay] User disconnected: ${userId}`);
-          break;
-        }
+      const userId = socket.data.userId;
+      if (userId) {
+        connectedUsers.delete(userId);
+        console.log(`[Socket] User disconnected: ${userId}`);
       }
     });
   });
 
-  app.get("/api/health", (_req, res) => {
-    res.json({ 
-      status: "ok", 
-      relay: "active",
-      connectedUsers: connectedUsers.size,
-      policy: "no-log"
-    });
-  });
+  setInterval(() => {
+    const now = Date.now();
+    const maxAge = 24 * 60 * 60 * 1000;
 
-  app.get("/api/stats", (_req, res) => {
-    res.json({
-      connectedUsers: connectedUsers.size,
-      pendingMessages: pendingMessages.size,
-    });
-  });
+    for (const [userId, messages] of messageQueue.entries()) {
+      const filtered = messages.filter((msg) => now - msg.timestamp < maxAge);
+      if (filtered.length === 0) {
+        messageQueue.delete(userId);
+      } else if (filtered.length !== messages.length) {
+        messageQueue.set(userId, filtered);
+      }
+    }
+  }, 60 * 60 * 1000);
 
   return httpServer;
 }
