@@ -7,10 +7,17 @@ interface PendingMessage {
   to: string;
   encrypted: string;
   timestamp: number;
+  groupId?: string;
+}
+
+interface GroupInfo {
+  id: string;
+  members: string[];
 }
 
 const connectedUsers = new Map<string, string>();
 const pendingMessages = new Map<string, PendingMessage[]>();
+const groups = new Map<string, GroupInfo>();
 const MESSAGE_TTL = 24 * 60 * 60 * 1000;
 
 function cleanupExpiredMessages() {
@@ -85,6 +92,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         pendingMessages.set(data.to, pending);
         console.log(`[Relay] Message queued for offline user: ${data.to}`);
+      }
+    });
+
+    socket.on("group:create", (data: { groupId: string; members: string[] }) => {
+      groups.set(data.groupId, { id: data.groupId, members: data.members });
+      socket.join(data.groupId);
+      console.log(`[Relay] Group created: ${data.groupId} with ${data.members.length} members`);
+    });
+
+    socket.on("group:join", (data: { groupId: string; userId: string }) => {
+      const group = groups.get(data.groupId);
+      if (group && !group.members.includes(data.userId)) {
+        group.members.push(data.userId);
+      }
+      socket.join(data.groupId);
+      console.log(`[Relay] User ${data.userId} joined group: ${data.groupId}`);
+    });
+
+    socket.on("group:leave", (data: { groupId: string; userId: string }) => {
+      const group = groups.get(data.groupId);
+      if (group) {
+        group.members = group.members.filter(m => m !== data.userId);
+        if (group.members.length === 0) {
+          groups.delete(data.groupId);
+        }
+      }
+      socket.leave(data.groupId);
+      console.log(`[Relay] User ${data.userId} left group: ${data.groupId}`);
+    });
+
+    socket.on("group:message", (data: { groupId: string; from: string; encrypted: string; content: string }) => {
+      const group = groups.get(data.groupId);
+      const timestamp = Date.now();
+      
+      if (group) {
+        group.members.forEach((memberId) => {
+          if (memberId !== data.from) {
+            const memberSocketId = connectedUsers.get(memberId);
+            if (memberSocketId) {
+              io.to(memberSocketId).emit("group:message", {
+                groupId: data.groupId,
+                from: data.from,
+                encrypted: data.encrypted,
+                content: data.content,
+                timestamp,
+              });
+            } else {
+              const pending = pendingMessages.get(memberId) || [];
+              pending.push({
+                from: data.from,
+                to: memberId,
+                encrypted: data.encrypted,
+                timestamp,
+                groupId: data.groupId,
+              });
+              pendingMessages.set(memberId, pending);
+            }
+          }
+        });
+        console.log(`[Relay] Group message: ${data.from} -> ${data.groupId}`);
+      } else {
+        io.to(data.groupId).emit("group:message", {
+          groupId: data.groupId,
+          from: data.from,
+          encrypted: data.encrypted,
+          content: data.content,
+          timestamp,
+        });
+        console.log(`[Relay] Group message (room): ${data.from} -> ${data.groupId}`);
       }
     });
 
