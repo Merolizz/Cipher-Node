@@ -18,18 +18,38 @@ import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollV
 import { createGroup, getContacts } from "@/lib/storage";
 import { useIdentity } from "@/hooks/useIdentity";
 import type { Contact } from "@/lib/crypto";
+import { useLanguage } from "@/constants/language";
 
 export default function CreateGroupScreen() {
   const navigation = useNavigation();
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
   const { identity } = useIdentity();
+  const { language } = useLanguage();
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [isCreating, setIsCreating] = useState(false);
+
+  const t = {
+    groupInfo: language === "tr" ? "Grup Bilgisi" : "Group Info",
+    groupName: language === "tr" ? "Grup adı" : "Group name",
+    description: language === "tr" ? "Açıklama (isteğe bağlı)" : "Description (optional)",
+    selectMembers: language === "tr" ? "Üye Seç" : "Select Members",
+    noContacts: language === "tr" ? "Henüz kişi yok" : "No contacts yet",
+    addContactsFirst: language === "tr" ? "Önce grup oluşturmak için kişi ekleyin" : "Add contacts first to create a group",
+    createGroup: language === "tr" ? "Grup Oluştur" : "Create Group",
+    creating: language === "tr" ? "Oluşturuluyor..." : "Creating...",
+    error: language === "tr" ? "Hata" : "Error",
+    enterGroupName: language === "tr" ? "Lütfen grup adı girin" : "Please enter a group name",
+    identityNotLoaded: language === "tr" ? "Kimlik yüklenmedi" : "Identity not loaded",
+    success: language === "tr" ? "Başarılı" : "Success",
+    groupCreated: language === "tr" ? "Grup başarıyla oluşturuldu" : "Group created successfully",
+    ok: language === "tr" ? "Tamam" : "OK",
+    failedToCreate: language === "tr" ? "Grup oluşturulamadı" : "Failed to create group",
+  };
 
   useEffect(() => {
     getContacts().then(setContacts);
@@ -48,12 +68,12 @@ export default function CreateGroupScreen() {
 
   const handleCreateGroup = async () => {
     if (!name.trim()) {
-      Alert.alert("Error", "Please enter a group name");
+      Alert.alert(t.error, t.enterGroupName);
       return;
     }
 
     if (!identity) {
-      Alert.alert("Error", "Identity not loaded");
+      Alert.alert(t.error, t.identityNotLoaded);
       return;
     }
 
@@ -71,11 +91,11 @@ export default function CreateGroupScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
 
-      Alert.alert("Success", "Group created successfully", [
-        { text: "OK", onPress: () => navigation.goBack() },
+      Alert.alert(t.success, t.groupCreated, [
+        { text: t.ok, onPress: () => navigation.goBack() },
       ]);
     } catch (error) {
-      Alert.alert("Error", "Failed to create group");
+      Alert.alert(t.error, t.failedToCreate);
     } finally {
       setIsCreating(false);
     }
@@ -93,14 +113,14 @@ export default function CreateGroupScreen() {
       ]}
     >
       <View style={styles.section}>
-        <ThemedText style={styles.sectionTitle}>Group Info</ThemedText>
+        <ThemedText style={styles.sectionTitle}>{t.groupInfo}</ThemedText>
 
         <View style={styles.inputGroup}>
           <TextInput
             style={styles.input}
             value={name}
             onChangeText={setName}
-            placeholder="Group name"
+            placeholder={t.groupName}
             placeholderTextColor={Colors.dark.textDisabled}
             maxLength={50}
           />
@@ -108,7 +128,7 @@ export default function CreateGroupScreen() {
             style={[styles.input, styles.textArea]}
             value={description}
             onChangeText={setDescription}
-            placeholder="Description (optional)"
+            placeholder={t.description}
             placeholderTextColor={Colors.dark.textDisabled}
             multiline
             numberOfLines={3}
@@ -119,14 +139,14 @@ export default function CreateGroupScreen() {
 
       <View style={styles.section}>
         <ThemedText style={styles.sectionTitle}>
-          Add Members ({selectedContacts.length} selected)
+          {t.selectMembers} ({selectedContacts.length})
         </ThemedText>
 
         {contacts.length === 0 ? (
           <View style={styles.emptyState}>
             <Feather name="users" size={32} color={Colors.dark.textDisabled} />
             <ThemedText style={styles.emptyText}>
-              No contacts yet. Add contacts first to create a group.
+              {t.noContacts} {t.addContactsFirst}
             </ThemedText>
           </View>
         ) : (
@@ -172,7 +192,7 @@ export default function CreateGroupScreen() {
       >
         <Feather name="users" size={20} color={Colors.dark.buttonText} />
         <ThemedText style={styles.createButtonText}>
-          {isCreating ? "Creating..." : "Create Group"}
+          {isCreating ? t.creating : t.createGroup}
         </ThemedText>
       </Pressable>
     </KeyboardAwareScrollViewCompat>

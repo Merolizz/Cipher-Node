@@ -12,6 +12,7 @@ import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
+import { useLanguage } from "@/constants/language";
 
 interface LinkRowProps {
   icon: string;
@@ -38,6 +39,29 @@ function LinkRow({ icon, title, url }: LinkRowProps) {
 export default function AboutScreen() {
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
+  const { language } = useLanguage();
+
+  const t = {
+    version: language === "tr" ? "Sürüm" : "Version",
+    description: language === "tr" 
+      ? "Hesap, izleme ve veri toplama olmadan gizlilik öncelikli, uçtan uca şifreli mesajlaşma."
+      : "Privacy-first, end-to-end encrypted messaging with no accounts, no tracking, and no data collection.",
+    features: language === "tr" ? "Özellikler" : "Features",
+    noAccountRequired: language === "tr" ? "Hesap gerekmez" : "No account required",
+    e2eEncryption: language === "tr" ? "Uçtan uca şifreleme (OpenPGP)" : "End-to-end encryption (OpenPGP)",
+    p2pRelay: language === "tr" ? "Yedek ile P2P" : "P2P with relay fallback",
+    noLogServers: language === "tr" ? "Kayıt tutmayan sunucular" : "No-log relay servers",
+    selfHostable: language === "tr" ? "Kendi barındırılabilir" : "Self-hostable",
+    openSource: language === "tr" ? "Açık kaynak (GPLv3)" : "Open source (GPLv3)",
+    links: language === "tr" ? "Bağlantılar" : "Links",
+    sourceCode: language === "tr" ? "Kaynak Kodu" : "Source Code",
+    documentation: language === "tr" ? "Dokümantasyon" : "Documentation",
+    reportIssue: language === "tr" ? "Sorun Bildir" : "Report Issue",
+    legal: language === "tr" ? "Yasal" : "Legal",
+    privacyPolicy: language === "tr" ? "Gizlilik Politikası" : "Privacy Policy",
+    termsOfService: language === "tr" ? "Kullanım Şartları" : "Terms of Service",
+    license: language === "tr" ? "Lisans" : "License",
+  };
 
   return (
     <ThemedView style={styles.container}>
@@ -55,61 +79,61 @@ export default function AboutScreen() {
             <Feather name="shield" size={48} color={Colors.dark.primary} />
           </View>
           <ThemedText style={styles.appName}>CipherNode</ThemedText>
-          <ThemedText style={styles.version}>Version 1.0.0</ThemedText>
+          <ThemedText style={styles.version}>{t.version} 1.0.0</ThemedText>
         </View>
 
         <View style={styles.descSection}>
           <ThemedText style={styles.description}>
-            Privacy-first, end-to-end encrypted messaging with no accounts, no tracking, and no data collection.
+            {t.description}
           </ThemedText>
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Features</ThemedText>
+          <ThemedText style={styles.sectionTitle}>{t.features}</ThemedText>
           <View style={styles.featureList}>
             <View style={styles.featureItem}>
               <Feather name="check" size={16} color={Colors.dark.success} />
-              <ThemedText style={styles.featureText}>No account required</ThemedText>
+              <ThemedText style={styles.featureText}>{t.noAccountRequired}</ThemedText>
             </View>
             <View style={styles.featureItem}>
               <Feather name="check" size={16} color={Colors.dark.success} />
-              <ThemedText style={styles.featureText}>End-to-end encryption (OpenPGP)</ThemedText>
+              <ThemedText style={styles.featureText}>{t.e2eEncryption}</ThemedText>
             </View>
             <View style={styles.featureItem}>
               <Feather name="check" size={16} color={Colors.dark.success} />
-              <ThemedText style={styles.featureText}>P2P with relay fallback</ThemedText>
+              <ThemedText style={styles.featureText}>{t.p2pRelay}</ThemedText>
             </View>
             <View style={styles.featureItem}>
               <Feather name="check" size={16} color={Colors.dark.success} />
-              <ThemedText style={styles.featureText}>No-log relay servers</ThemedText>
+              <ThemedText style={styles.featureText}>{t.noLogServers}</ThemedText>
             </View>
             <View style={styles.featureItem}>
               <Feather name="check" size={16} color={Colors.dark.success} />
-              <ThemedText style={styles.featureText}>Self-hostable</ThemedText>
+              <ThemedText style={styles.featureText}>{t.selfHostable}</ThemedText>
             </View>
             <View style={styles.featureItem}>
               <Feather name="check" size={16} color={Colors.dark.success} />
-              <ThemedText style={styles.featureText}>Open source (GPLv3)</ThemedText>
+              <ThemedText style={styles.featureText}>{t.openSource}</ThemedText>
             </View>
           </View>
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Links</ThemedText>
+          <ThemedText style={styles.sectionTitle}>{t.links}</ThemedText>
           <View style={styles.linksCard}>
             <LinkRow
               icon="github"
-              title="Source Code"
+              title={t.sourceCode}
               url="https://github.com/ciphernode/ciphernode"
             />
             <LinkRow
               icon="file-text"
-              title="License (GPLv3)"
+              title={t.license}
               url="https://www.gnu.org/licenses/gpl-3.0.html"
             />
             <LinkRow
               icon="book"
-              title="Documentation"
+              title={t.documentation}
               url="https://github.com/ciphernode/ciphernode#readme"
             />
           </View>

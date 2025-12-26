@@ -31,6 +31,7 @@ import {
 import type { Contact } from "@/lib/crypto";
 import type { ChatsStackParamList } from "@/navigation/ChatsStackNavigator";
 import ConnectionStatus from "@/components/ConnectionStatus";
+import { useLanguage } from "@/constants/language";
 
 type NavigationProp = NativeStackNavigationProp<ChatsStackParamList, "ChatsList">;
 
@@ -110,15 +111,25 @@ function ChatItem({ item, onPress, onLongPress }: ChatItemProps) {
 
 function EmptyState() {
   const navigation = useNavigation<NavigationProp>();
+  const { language } = useLanguage();
+
+  const t = {
+    noChatsYet: language === "tr" ? "Henüz sohbet yok" : "No chats yet",
+    addContactOrGroup: language === "tr" 
+      ? "Güvenli mesajlaşmaya başlamak için kişi ekleyin veya grup oluşturun" 
+      : "Add a contact or create a group to start messaging securely",
+    addContact: language === "tr" ? "Kişi Ekle" : "Add Contact",
+    createGroup: language === "tr" ? "Grup Oluştur" : "Create Group",
+  };
 
   return (
     <View style={styles.emptyState}>
       <View style={styles.emptyIcon}>
         <Feather name="message-circle" size={64} color={Colors.dark.textSecondary} />
       </View>
-      <ThemedText style={styles.emptyTitle}>No chats yet</ThemedText>
+      <ThemedText style={styles.emptyTitle}>{t.noChatsYet}</ThemedText>
       <ThemedText style={styles.emptySubtitle}>
-        Add a contact or create a group to start messaging securely
+        {t.addContactOrGroup}
       </ThemedText>
       <View style={styles.emptyButtons}>
         <Pressable
@@ -131,7 +142,7 @@ function EmptyState() {
           }}
         >
           <Feather name="user-plus" size={18} color={Colors.dark.buttonText} />
-          <ThemedText style={styles.emptyButtonText}>Add Contact</ThemedText>
+          <ThemedText style={styles.emptyButtonText}>{t.addContact}</ThemedText>
         </Pressable>
         <Pressable
           style={({ pressed }) => [
@@ -141,7 +152,7 @@ function EmptyState() {
           onPress={() => navigation.navigate("CreateGroup")}
         >
           <Feather name="users" size={18} color={Colors.dark.primary} />
-          <ThemedText style={styles.emptyButtonTextSecondary}>Create Group</ThemedText>
+          <ThemedText style={styles.emptyButtonTextSecondary}>{t.createGroup}</ThemedText>
         </Pressable>
       </View>
     </View>
@@ -152,9 +163,20 @@ export default function ChatsListScreen() {
   const navigation = useNavigation<NavigationProp>();
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
+  const { language } = useLanguage();
   const [items, setItems] = useState<ListItem[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+
+  const t = {
+    archive: language === "tr" ? "Arşivle" : "Archive",
+    delete: language === "tr" ? "Sil" : "Delete",
+    cancel: language === "tr" ? "İptal" : "Cancel",
+    deleteTitle: language === "tr" ? "Sil" : "Delete",
+    deleteConversation: language === "tr" ? "Bu sohbeti silmek istediğinizden emin misiniz?" : "Are you sure you want to delete this conversation?",
+    deleteGroup: language === "tr" ? "Bu grubu silmek istediğinizden emin misiniz?" : "Are you sure you want to delete this group?",
+    chooseAction: language === "tr" ? "Bir işlem seçin" : "Choose an action",
+  };
 
   const loadData = useCallback(async () => {
     const [chatsData, groupsData, contactsData] = await Promise.all([
@@ -203,7 +225,7 @@ export default function ChatsListScreen() {
 
     const options = [
       {
-        text: "Archive",
+        text: t.archive,
         onPress: async () => {
           if (item.type === "chat") {
             await archiveChat(item.contactId);
@@ -214,16 +236,16 @@ export default function ChatsListScreen() {
         },
       },
       {
-        text: "Delete",
+        text: t.delete,
         style: "destructive" as const,
         onPress: () => {
           Alert.alert(
-            "Delete",
-            `Are you sure you want to delete this ${item.type === "chat" ? "conversation" : "group"}?`,
+            t.deleteTitle,
+            item.type === "chat" ? t.deleteConversation : t.deleteGroup,
             [
-              { text: "Cancel", style: "cancel" },
+              { text: t.cancel, style: "cancel" },
               {
-                text: "Delete",
+                text: t.delete,
                 style: "destructive",
                 onPress: async () => {
                   if (item.type === "chat") {
@@ -238,12 +260,12 @@ export default function ChatsListScreen() {
           );
         },
       },
-      { text: "Cancel", style: "cancel" as const },
+      { text: t.cancel, style: "cancel" as const },
     ];
 
     Alert.alert(
       item.type === "chat" ? item.displayName : item.name,
-      "Choose an action",
+      t.chooseAction,
       options
     );
   };

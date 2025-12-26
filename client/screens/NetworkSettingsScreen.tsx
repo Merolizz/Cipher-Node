@@ -15,16 +15,44 @@ import { ThemedText } from "@/components/ThemedText";
 import { Colors, Spacing, BorderRadius, Fonts } from "@/constants/theme";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { getSettings, updateSettings } from "@/lib/storage";
+import { useLanguage } from "@/constants/language";
 
 type ServerType = "official" | "custom";
 
 export default function NetworkSettingsScreen() {
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
+  const { language } = useLanguage();
 
   const [serverType, setServerType] = useState<ServerType>("official");
   const [customUrl, setCustomUrl] = useState("");
   const [isTesting, setIsTesting] = useState(false);
+
+  const t = {
+    serverSettings: language === "tr" ? "Sunucu Ayarları" : "Server Settings",
+    officialServer: language === "tr" ? "Resmi Sunucu" : "Official Server",
+    officialServerDesc: language === "tr" ? "CipherNode resmi röle sunucusunu kullan" : "Use the official CipherNode relay server",
+    customServer: language === "tr" ? "Özel Sunucu" : "Custom Server",
+    customServerDesc: language === "tr" ? "Kendi röle sunucunuzu kullanın" : "Use your own relay server",
+    serverUrl: language === "tr" ? "Sunucu URL" : "Server URL",
+    testConnection: language === "tr" ? "Bağlantıyı Test Et" : "Test Connection",
+    testing: language === "tr" ? "Test ediliyor..." : "Testing...",
+    save: language === "tr" ? "Kaydet" : "Save",
+    error: language === "tr" ? "Hata" : "Error",
+    enterValidUrl: language === "tr" ? "Geçerli bir sunucu URL'si girin" : "Please enter a valid server URL",
+    invalidUrl: language === "tr" ? "Geçerli bir URL girin (ör: https://example.com)" : "Please enter a valid URL (e.g., https://example.com)",
+    saved: language === "tr" ? "Kaydedildi" : "Saved",
+    customUrlSaved: language === "tr" ? "Özel sunucu URL'si kaydedildi" : "Custom server URL has been saved",
+    connectionSuccess: language === "tr" ? "Bağlantı Başarılı" : "Connection Successful",
+    serverOnline: language === "tr" ? "Sunucu çevrimiçi ve erişilebilir" : "Server is online and accessible",
+    connectionFailed: language === "tr" ? "Bağlantı Başarısız" : "Connection Failed",
+    serverUnreachable: language === "tr" ? "Sunucuya ulaşılamıyor" : "Could not reach the server",
+    selfHostInfo: language === "tr" ? "Kendi Barındırma Bilgisi" : "Self-Hosting Info",
+    selfHostDesc: language === "tr" 
+      ? "Docker ile kendi röle sunucunuzu çalıştırın. Kayıt yok, izleme yok, tam kontrol."
+      : "Run your own relay server with Docker. No logs, no tracking, complete control.",
+    viewDocs: language === "tr" ? "Dokümantasyonu Görüntüle" : "View Documentation",
+  };
 
   useEffect(() => {
     getSettings().then((s) => {
@@ -45,14 +73,14 @@ export default function NetworkSettingsScreen() {
 
   const handleSaveCustomUrl = async () => {
     if (!customUrl.trim()) {
-      Alert.alert("Error", "Please enter a valid server URL");
+      Alert.alert(t.error, t.enterValidUrl);
       return;
     }
 
     try {
       new URL(customUrl);
     } catch {
-      Alert.alert("Error", "Please enter a valid URL (e.g., https://example.com)");
+      Alert.alert(t.error, t.invalidUrl);
       return;
     }
 
@@ -60,7 +88,7 @@ export default function NetworkSettingsScreen() {
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
-    Alert.alert("Saved", "Custom server URL has been saved");
+    Alert.alert(t.saved, t.customUrlSaved);
   };
 
   const handleTestConnection = async () => {
@@ -70,9 +98,9 @@ export default function NetworkSettingsScreen() {
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-      Alert.alert("Success", "Connection test passed");
+      Alert.alert(t.connectionSuccess, t.serverOnline);
     } catch {
-      Alert.alert("Error", "Could not connect to server");
+      Alert.alert(t.connectionFailed, t.serverUnreachable);
     } finally {
       setIsTesting(false);
     }
@@ -90,7 +118,7 @@ export default function NetworkSettingsScreen() {
       ]}
     >
       <View style={styles.section}>
-        <ThemedText style={styles.sectionTitle}>Server Selection</ThemedText>
+        <ThemedText style={styles.sectionTitle}>{t.serverSettings}</ThemedText>
 
         <Pressable
           onPress={() => handleServerTypeChange("official")}
@@ -102,13 +130,13 @@ export default function NetworkSettingsScreen() {
         >
           <View style={styles.serverOptionContent}>
             <View style={styles.serverOptionHeader}>
-              <ThemedText style={styles.serverOptionTitle}>Official Server</ThemedText>
+              <ThemedText style={styles.serverOptionTitle}>{t.officialServer}</ThemedText>
               {serverType === "official" ? (
                 <Feather name="check-circle" size={20} color={Colors.dark.primary} />
               ) : null}
             </View>
             <ThemedText style={styles.serverOptionDesc}>
-              Use CipherNode's official relay server
+              {t.officialServerDesc}
             </ThemedText>
           </View>
         </Pressable>
@@ -123,13 +151,13 @@ export default function NetworkSettingsScreen() {
         >
           <View style={styles.serverOptionContent}>
             <View style={styles.serverOptionHeader}>
-              <ThemedText style={styles.serverOptionTitle}>Custom Server</ThemedText>
+              <ThemedText style={styles.serverOptionTitle}>{t.customServer}</ThemedText>
               {serverType === "custom" ? (
                 <Feather name="check-circle" size={20} color={Colors.dark.primary} />
               ) : null}
             </View>
             <ThemedText style={styles.serverOptionDesc}>
-              Connect to your own self-hosted server
+              {t.customServerDesc}
             </ThemedText>
           </View>
         </Pressable>
@@ -137,7 +165,7 @@ export default function NetworkSettingsScreen() {
 
       {serverType === "custom" ? (
         <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Custom Server URL</ThemedText>
+          <ThemedText style={styles.sectionTitle}>{t.serverUrl}</ThemedText>
           <TextInput
             style={styles.input}
             value={customUrl}
@@ -165,7 +193,7 @@ export default function NetworkSettingsScreen() {
                   (!customUrl.trim() || isTesting) && styles.buttonTextDisabled,
                 ]}
               >
-                {isTesting ? "Testing..." : "Test Connection"}
+                {isTesting ? t.testing : t.testConnection}
               </ThemedText>
             </Pressable>
 

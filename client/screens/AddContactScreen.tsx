@@ -22,6 +22,7 @@ import { parseContactId } from "@/lib/crypto";
 import { addContact, getContacts } from "@/lib/storage";
 import { useIdentity } from "@/hooks/useIdentity";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
+import { useLanguage } from "@/constants/language";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -30,9 +31,33 @@ export default function AddContactScreen() {
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
   const { identity, loading } = useIdentity();
+  const { language } = useLanguage();
 
   const [contactIdInput, setContactIdInput] = useState("");
   const [isAdding, setIsAdding] = useState(false);
+
+  const t = {
+    scanQR: language === "tr" ? "QR Kod Tara" : "Scan QR Code",
+    scanQRSubtext: language === "tr" ? "Eklemek için kişinin QR kodunu tarayın" : "Scan a contact's QR code to add them",
+    or: language === "tr" ? "VEYA" : "OR",
+    enterContactId: language === "tr" ? "Kişi ID'si Girin" : "Enter Contact ID",
+    addContact: language === "tr" ? "Kişi Ekle" : "Add Contact",
+    adding: language === "tr" ? "Ekleniyor..." : "Adding...",
+    shareYourId: language === "tr" ? "ID'nizi Paylaşın" : "Share Your ID",
+    othersCanScan: language === "tr" ? "Diğerleri sizi eklemek için bunu tarayabilir" : "Others can scan this to add you",
+    copied: language === "tr" ? "Kopyalandı" : "Copied",
+    copiedToClipboard: language === "tr" ? "ID'niz panoya kopyalandı" : "Your ID has been copied to clipboard",
+    invalidId: language === "tr" ? "Geçersiz ID" : "Invalid ID",
+    invalidIdMsg: language === "tr" ? "Geçerli bir kişi ID'si girin (format: XXXX-XXXX)" : "Please enter a valid contact ID (format: XXXX-XXXX)",
+    error: language === "tr" ? "Hata" : "Error",
+    cannotAddSelf: language === "tr" ? "Kendinizi kişi olarak ekleyemezsiniz" : "You cannot add yourself as a contact",
+    alreadyAdded: language === "tr" ? "Zaten Ekli" : "Already Added",
+    alreadyAddedMsg: language === "tr" ? "Bu kişi zaten listenizde" : "This contact is already in your list",
+    success: language === "tr" ? "Başarılı" : "Success",
+    contactAdded: language === "tr" ? "Kişi başarıyla eklendi" : "Contact added successfully",
+    failedToAdd: language === "tr" ? "Kişi eklenemedi" : "Failed to add contact",
+    generatingIdentity: language === "tr" ? "Kimlik oluşturuluyor..." : "Generating identity...",
+  };
 
   const handleScanQR = () => {
     navigation.navigate("QRScanner");
@@ -44,25 +69,25 @@ export default function AddContactScreen() {
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-      Alert.alert("Copied", "Your ID has been copied to clipboard");
+      Alert.alert(t.copied, t.copiedToClipboard);
     }
   };
 
   const handleAddContact = useCallback(async () => {
     const parsedId = parseContactId(contactIdInput);
     if (!parsedId) {
-      Alert.alert("Invalid ID", "Please enter a valid contact ID (format: XXXX-XXXX)");
+      Alert.alert(t.invalidId, t.invalidIdMsg);
       return;
     }
 
     if (parsedId === identity?.id) {
-      Alert.alert("Error", "You cannot add yourself as a contact");
+      Alert.alert(t.error, t.cannotAddSelf);
       return;
     }
 
     const contacts = await getContacts();
     if (contacts.some((c) => c.id === parsedId)) {
-      Alert.alert("Already Added", "This contact is already in your list");
+      Alert.alert(t.alreadyAdded, t.alreadyAddedMsg);
       return;
     }
 
@@ -80,18 +105,18 @@ export default function AddContactScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
       setContactIdInput("");
-      Alert.alert("Success", "Contact added successfully");
+      Alert.alert(t.success, t.contactAdded);
     } catch (error) {
-      Alert.alert("Error", "Failed to add contact");
+      Alert.alert(t.error, t.failedToAdd);
     } finally {
       setIsAdding(false);
     }
-  }, [contactIdInput, identity]);
+  }, [contactIdInput, identity, t]);
 
   if (loading) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
-        <ThemedText style={styles.loadingText}>Generating identity...</ThemedText>
+        <ThemedText style={styles.loadingText}>{t.generatingIdentity}</ThemedText>
       </View>
     );
   }
@@ -117,20 +142,20 @@ export default function AddContactScreen() {
         <View style={styles.scanIconContainer}>
           <Feather name="camera" size={32} color={Colors.dark.primary} />
         </View>
-        <ThemedText style={styles.scanButtonText}>Scan QR Code</ThemedText>
+        <ThemedText style={styles.scanButtonText}>{t.scanQR}</ThemedText>
         <ThemedText style={styles.scanButtonSubtext}>
-          Scan a contact's QR code to add them
+          {t.scanQRSubtext}
         </ThemedText>
       </Pressable>
 
       <View style={styles.divider}>
         <View style={styles.dividerLine} />
-        <ThemedText style={styles.dividerText}>OR</ThemedText>
+        <ThemedText style={styles.dividerText}>{t.or}</ThemedText>
         <View style={styles.dividerLine} />
       </View>
 
       <View style={styles.section}>
-        <ThemedText style={styles.sectionTitle}>Enter Contact ID</ThemedText>
+        <ThemedText style={styles.sectionTitle}>{t.enterContactId}</ThemedText>
         <View style={styles.inputContainer}>
           <TextInput
             style={styles.input}
@@ -158,13 +183,13 @@ export default function AddContactScreen() {
               (!contactIdInput.trim() || isAdding) && styles.addButtonTextDisabled,
             ]}
           >
-            {isAdding ? "Adding..." : "Add Contact"}
+            {isAdding ? t.adding : t.addContact}
           </ThemedText>
         </Pressable>
       </View>
 
       <View style={styles.section}>
-        <ThemedText style={styles.sectionTitle}>Share Your ID</ThemedText>
+        <ThemedText style={styles.sectionTitle}>{t.shareYourId}</ThemedText>
         <View style={styles.shareSection}>
           <Pressable
             onPress={copyOwnId}
@@ -191,7 +216,7 @@ export default function AddContactScreen() {
             ) : null}
           </View>
           <ThemedText style={styles.qrHint}>
-            Others can scan this to add you
+            {t.othersCanScan}
           </ThemedText>
         </View>
       </View>

@@ -18,14 +18,42 @@ import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius, Fonts } from "@/constants/theme";
 import { useIdentity } from "@/hooks/useIdentity";
 import { clearAllData } from "@/lib/storage";
+import { useLanguage } from "@/constants/language";
 
 export default function SecuritySettingsScreen() {
   const navigation = useNavigation();
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
   const { identity, regenerate } = useIdentity();
+  const { language } = useLanguage();
 
   const [showFingerprint, setShowFingerprint] = useState(false);
+
+  const t = {
+    encryptionStatus: language === "tr" ? "Şifreleme Durumu" : "Encryption Status",
+    e2eEncrypted: language === "tr" ? "Uçtan Uca Şifreli" : "End-to-End Encrypted",
+    allMessagesSecure: language === "tr" ? "Tüm mesajlar güvenli" : "All messages are secured",
+    yourIdentity: language === "tr" ? "Kimliğiniz" : "Your Identity",
+    yourId: language === "tr" ? "ID'niz" : "Your ID",
+    fingerprint: language === "tr" ? "Parmak İzi" : "Fingerprint",
+    showFingerprint: language === "tr" ? "Parmak İzini Göster" : "Show Fingerprint",
+    hideFingerprint: language === "tr" ? "Parmak İzini Gizle" : "Hide Fingerprint",
+    keyManagement: language === "tr" ? "Anahtar Yönetimi" : "Key Management",
+    exportPublicKey: language === "tr" ? "Genel Anahtarı Dışa Aktar" : "Export Public Key",
+    exportPublicKeyDesc: language === "tr" ? "Genel anahtarınızı panoya kopyalayın" : "Copy your public key to clipboard",
+    regenerateKeys: language === "tr" ? "Anahtarları Yeniden Oluştur" : "Regenerate Keys",
+    regenerateKeysDesc: language === "tr" ? "Yeni bir kimlik oluşturun (tüm veriler silinir)" : "Create a new identity (deletes all data)",
+    copied: language === "tr" ? "Kopyalandı" : "Copied",
+    publicKeyCopied: language === "tr" ? "Genel anahtarınız panoya kopyalandı" : "Your public key has been copied to clipboard",
+    regenerateTitle: language === "tr" ? "Anahtarları Yeniden Oluştur" : "Regenerate Keys",
+    regenerateWarning: language === "tr" 
+      ? "Bu yeni bir kimlik oluşturacak ve tüm kişilerinizi ve mesajlarınızı silecek. Bu işlem geri alınamaz.\n\nDevam etmek istediğinizden emin misiniz?"
+      : "This will create a new identity and delete all your contacts and messages. This action cannot be undone.\n\nAre you sure you want to continue?",
+    cancel: language === "tr" ? "İptal" : "Cancel",
+    regenerate: language === "tr" ? "Yeniden Oluştur" : "Regenerate",
+    success: language === "tr" ? "Başarılı" : "Success",
+    newIdentityGenerated: language === "tr" ? "Yeni kimlik oluşturuldu" : "New identity has been generated",
+  };
 
   const handleExportPublicKey = async () => {
     if (identity?.publicKey) {
@@ -33,18 +61,18 @@ export default function SecuritySettingsScreen() {
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-      Alert.alert("Copied", "Your public key has been copied to clipboard");
+      Alert.alert(t.copied, t.publicKeyCopied);
     }
   };
 
   const handleRegenerateKeys = () => {
     Alert.alert(
-      "Regenerate Keys",
-      "This will create a new identity and delete all your contacts and messages. This action cannot be undone.\n\nAre you sure you want to continue?",
+      t.regenerateTitle,
+      t.regenerateWarning,
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t.cancel, style: "cancel" },
         {
-          text: "Regenerate",
+          text: t.regenerate,
           style: "destructive",
           onPress: async () => {
             await clearAllData();
@@ -52,7 +80,7 @@ export default function SecuritySettingsScreen() {
             if (Platform.OS !== "web") {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             }
-            Alert.alert("Success", "New identity has been generated");
+            Alert.alert(t.success, t.newIdentityGenerated);
           },
         },
       ]
@@ -75,14 +103,14 @@ export default function SecuritySettingsScreen() {
         ]}
       >
         <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Encryption Status</ThemedText>
+          <ThemedText style={styles.sectionTitle}>{t.encryptionStatus}</ThemedText>
           <View style={styles.statusCard}>
             <View style={styles.statusHeader}>
               <View style={styles.statusIcon}>
                 <Feather name="shield" size={24} color={Colors.dark.success} />
               </View>
               <View>
-                <ThemedText style={styles.statusTitle}>End-to-End Encrypted</ThemedText>
+                <ThemedText style={styles.statusTitle}>{t.e2eEncrypted}</ThemedText>
                 <ThemedText style={styles.statusSubtitle}>
                   AES-256 + RSA (OpenPGP)
                 </ThemedText>
@@ -92,10 +120,10 @@ export default function SecuritySettingsScreen() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Your Public Key</ThemedText>
+          <ThemedText style={styles.sectionTitle}>{t.yourIdentity}</ThemedText>
           <View style={styles.keyCard}>
             <View style={styles.keyHeader}>
-              <ThemedText style={styles.keyLabel}>Fingerprint</ThemedText>
+              <ThemedText style={styles.keyLabel}>{t.fingerprint}</ThemedText>
               <Pressable
                 onPress={() => setShowFingerprint(!showFingerprint)}
                 style={({ pressed }) => [
@@ -104,7 +132,7 @@ export default function SecuritySettingsScreen() {
                 ]}
               >
                 <ThemedText style={styles.expandButtonText}>
-                  {showFingerprint ? "Hide" : "Show"}
+                  {showFingerprint ? t.hideFingerprint : t.showFingerprint}
                 </ThemedText>
               </Pressable>
             </View>
@@ -123,18 +151,18 @@ export default function SecuritySettingsScreen() {
             >
               <Feather name="copy" size={18} color={Colors.dark.primary} />
               <ThemedText style={styles.exportButtonText}>
-                Copy Public Key
+                {t.exportPublicKey}
               </ThemedText>
             </Pressable>
           </View>
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Danger Zone</ThemedText>
+          <ThemedText style={styles.sectionTitle}>{t.keyManagement}</ThemedText>
           <View style={styles.dangerCard}>
-            <ThemedText style={styles.dangerTitle}>Regenerate Identity</ThemedText>
+            <ThemedText style={styles.dangerTitle}>{t.regenerateKeys}</ThemedText>
             <ThemedText style={styles.dangerText}>
-              This will create a new cryptographic identity. All your contacts and messages will be permanently deleted.
+              {t.regenerateKeysDesc}
             </ThemedText>
             <Pressable
               onPress={handleRegenerateKeys}
@@ -145,7 +173,7 @@ export default function SecuritySettingsScreen() {
             >
               <Feather name="refresh-cw" size={18} color={Colors.dark.error} />
               <ThemedText style={styles.dangerButtonText}>
-                Regenerate Keys
+                {t.regenerateKeys}
               </ThemedText>
             </Pressable>
           </View>
@@ -154,7 +182,9 @@ export default function SecuritySettingsScreen() {
         <View style={styles.infoSection}>
           <Feather name="info" size={18} color={Colors.dark.secondary} />
           <ThemedText style={styles.infoText}>
-            Your private key never leaves your device. Only you can decrypt messages sent to you.
+            {language === "tr" 
+              ? "Özel anahtarınız asla cihazınızdan ayrılmaz. Sadece siz size gönderilen mesajları deşifre edebilirsiniz."
+              : "Your private key never leaves your device. Only you can decrypt messages sent to you."}
           </ThemedText>
         </View>
       </ScrollView>
