@@ -16,6 +16,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import ActionSheet, { type ActionSheetOption } from "@/components/ActionSheet";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import {
   getActiveChats,
@@ -168,6 +169,12 @@ export default function ChatsListScreen() {
   const [items, setItems] = useState<ListItem[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [actionSheetVisible, setActionSheetVisible] = useState(false);
+  const [actionSheetOptions, setActionSheetOptions] = useState<ActionSheetOption[]>([]);
+  const [actionSheetTitle, setActionSheetTitle] = useState("");
+  const [actionSheetMessage, setActionSheetMessage] = useState("");
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [pendingDeleteItem, setPendingDeleteItem] = useState<ListItem | null>(null);
 
   const t = {
     archive: language === "tr" ? "Arşivle" : "Archive",
@@ -177,6 +184,7 @@ export default function ChatsListScreen() {
     deleteConversation: language === "tr" ? "Bu sohbeti silmek istediğinizden emin misiniz?" : "Are you sure you want to delete this conversation?",
     deleteGroup: language === "tr" ? "Bu grubu silmek istediğinizden emin misiniz?" : "Are you sure you want to delete this group?",
     chooseAction: language === "tr" ? "Bir işlem seçin" : "Choose an action",
+    confirm: language === "tr" ? "Onayla" : "Confirm",
   };
 
   const loadData = useCallback(async () => {
@@ -232,12 +240,24 @@ export default function ChatsListScreen() {
     setRefreshing(false);
   }, [loadData]);
 
+  const handleDeleteConfirm = async () => {
+    if (!pendingDeleteItem) return;
+    if (pendingDeleteItem.type === "chat") {
+      await deleteChat(pendingDeleteItem.contactId);
+    } else {
+      await deleteGroup(pendingDeleteItem.id);
+    }
+    setPendingDeleteItem(null);
+    setDeleteConfirmVisible(false);
+    loadData();
+  };
+
   const handleLongPress = (item: ListItem) => {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
 
-    const options = [
+    const options: ActionSheetOption[] = [
       {
         text: t.archive,
         onPress: async () => {
@@ -251,37 +271,19 @@ export default function ChatsListScreen() {
       },
       {
         text: t.delete,
-        style: "destructive" as const,
+        style: "destructive",
         onPress: () => {
-          Alert.alert(
-            t.deleteTitle,
-            item.type === "chat" ? t.deleteConversation : t.deleteGroup,
-            [
-              { text: t.cancel, style: "cancel" },
-              {
-                text: t.delete,
-                style: "destructive",
-                onPress: async () => {
-                  if (item.type === "chat") {
-                    await deleteChat(item.contactId);
-                  } else {
-                    await deleteGroup(item.id);
-                  }
-                  loadData();
-                },
-              },
-            ]
-          );
+          setPendingDeleteItem(item);
+          setDeleteConfirmVisible(true);
         },
       },
-      { text: t.cancel, style: "cancel" as const },
+      { text: t.cancel, style: "cancel", onPress: () => {} },
     ];
 
-    Alert.alert(
-      item.type === "chat" ? item.displayName : item.name,
-      t.chooseAction,
-      options
-    );
+    setActionSheetTitle(item.type === "chat" ? item.displayName : item.name);
+    setActionSheetMessage(t.chooseAction);
+    setActionSheetOptions(options);
+    setActionSheetVisible(true);
   };
 
   const handleItemPress = (item: ListItem) => {
@@ -359,6 +361,39 @@ export default function ChatsListScreen() {
             tintColor={Colors.dark.primary}
           />
         }
+      />
+
+      <ActionSheet
+        visible={actionSheetVisible}
+        onClose={() => setActionSheetVisible(false)}
+        title={actionSheetTitle}
+        message={actionSheetMessage}
+        options={actionSheetOptions}
+      />
+
+      <ActionSheet
+        visible={deleteConfirmVisible}
+        onClose={() => {
+          setDeleteConfirmVisible(false);
+          setPendingDeleteItem(null);
+        }}
+        title={t.deleteTitle}
+        message={pendingDeleteItem?.type === "chat" ? t.deleteConversation : t.deleteGroup}
+        options={[
+          {
+            text: t.delete,
+            style: "destructive",
+            onPress: handleDeleteConfirm,
+          },
+          {
+            text: t.cancel,
+            style: "cancel",
+            onPress: () => {
+              setDeleteConfirmVisible(false);
+              setPendingDeleteItem(null);
+            },
+          },
+        ]}
       />
     </ThemedView>
   );
