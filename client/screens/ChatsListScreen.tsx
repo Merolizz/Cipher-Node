@@ -51,6 +51,7 @@ function ChatItem({ item, onPress, onLongPress }: ChatItemProps) {
       ? item.messages[item.messages.length - 1]
       : item.messages[item.messages.length - 1];
   const displayName = item.type === "chat" ? item.displayName : item.name;
+  const hasNoMessages = item.type === "chat" && item.messages.length === 0;
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -89,14 +90,14 @@ function ChatItem({ item, onPress, onLongPress }: ChatItemProps) {
             {displayName}
           </ThemedText>
           <ThemedText style={styles.timestamp}>
-            {lastMessage ? formatTime(lastMessage.timestamp) : ""}
+            {lastMessage ? formatTime(lastMessage.timestamp) : hasNoMessages ? formatTime(item.lastMessageAt) : ""}
           </ThemedText>
         </View>
         <View style={styles.chatPreview}>
           <ThemedText style={styles.messagePreview} numberOfLines={1}>
             {item.type === "group" && lastMessage
               ? `${lastMessage.senderId.split("-")[0]}: ${lastMessage.content}`
-              : lastMessage?.content || "No messages yet"}
+              : lastMessage?.content || (hasNoMessages ? "Tap to start chatting" : "No messages yet")}
           </ThemedText>
           {item.unreadCount > 0 ? (
             <View style={styles.unreadBadge}>
@@ -194,12 +195,25 @@ export default function ChatsListScreen() {
         chat.contactId,
     }));
 
+    const contactsWithoutChats = contactsData.filter(
+      (contact) => !chatsData.some((chat) => chat.contactId === contact.id)
+    );
+    const contactAsChats: ListItem[] = contactsWithoutChats.map((contact) => ({
+      contactId: contact.id,
+      messages: [],
+      lastMessageAt: contact.addedAt,
+      unreadCount: 0,
+      isArchived: false,
+      type: "chat" as const,
+      displayName: contact.displayName || contact.id,
+    }));
+
     const groupItems: ListItem[] = groupsData.map((group) => ({
       ...group,
       type: "group" as const,
     }));
 
-    const allItems = [...chatItems, ...groupItems].sort(
+    const allItems = [...chatItems, ...contactAsChats, ...groupItems].sort(
       (a, b) => b.lastMessageAt - a.lastMessageAt
     );
 
