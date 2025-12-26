@@ -25,7 +25,13 @@
     },
     "web": {
       "output": "single",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "lang": "en",
+      "bundler": "metro"
+    },
+    "locales": {
+      "tr": "./locales/tr.json",
+      "en": "./locales/en.json"
     },
     "plugins": [
       [
