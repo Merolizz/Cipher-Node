@@ -107,9 +107,30 @@ export default function QRScannerScreen() {
     }
   };
 
+  if (Platform.OS === "web") {
+    return (
+      <ThemedView style={[styles.container, styles.permissionContainer]}>
+        <Feather name="smartphone" size={64} color={Colors.dark.primary} />
+        <ThemedText style={styles.permissionTitle}>{t.useExpoGo}</ThemedText>
+        <ThemedText style={styles.permissionText}>
+          {t.qrScanningBest}
+        </ThemedText>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={({ pressed }) => [
+            styles.closeButton,
+            pressed && styles.closeButtonPressed,
+          ]}
+        >
+          <ThemedText style={styles.closeButtonText}>{t.goBack}</ThemedText>
+        </Pressable>
+      </ThemedView>
+    );
+  }
+
   if (!permission) {
     return (
-      <ThemedView style={styles.container}>
+      <ThemedView style={[styles.container, styles.permissionContainer]}>
         <ThemedText>{t.loadingCamera}</ThemedText>
       </ThemedView>
     );
@@ -124,23 +145,21 @@ export default function QRScannerScreen() {
           <ThemedText style={styles.permissionText}>
             {t.enableCameraInSettings}
           </ThemedText>
-          {Platform.OS !== "web" ? (
-            <Pressable
-              onPress={async () => {
-                try {
-                  await Linking.openSettings();
-                } catch (error) {
-                  console.error("Could not open settings");
-                }
-              }}
-              style={({ pressed }) => [
-                styles.settingsButton,
-                pressed && styles.settingsButtonPressed,
-              ]}
-            >
-              <ThemedText style={styles.settingsButtonText}>{t.openSettings}</ThemedText>
-            </Pressable>
-          ) : null}
+          <Pressable
+            onPress={async () => {
+              try {
+                await Linking.openSettings();
+              } catch (error) {
+                console.error("Could not open settings");
+              }
+            }}
+            style={({ pressed }) => [
+              styles.settingsButton,
+              pressed && styles.settingsButtonPressed,
+            ]}
+          >
+            <ThemedText style={styles.settingsButtonText}>{t.openSettings}</ThemedText>
+          </Pressable>
           <Pressable
             onPress={() => navigation.goBack()}
             style={({ pressed }) => [
@@ -178,27 +197,6 @@ export default function QRScannerScreen() {
           ]}
         >
           <ThemedText style={styles.closeButtonText}>{t.cancel}</ThemedText>
-        </Pressable>
-      </ThemedView>
-    );
-  }
-
-  if (Platform.OS === "web") {
-    return (
-      <ThemedView style={[styles.container, styles.permissionContainer]}>
-        <Feather name="smartphone" size={64} color={Colors.dark.primary} />
-        <ThemedText style={styles.permissionTitle}>{t.useExpoGo}</ThemedText>
-        <ThemedText style={styles.permissionText}>
-          {t.qrScanningBest}
-        </ThemedText>
-        <Pressable
-          onPress={() => navigation.goBack()}
-          style={({ pressed }) => [
-            styles.closeButton,
-            pressed && styles.closeButtonPressed,
-          ]}
-        >
-          <ThemedText style={styles.closeButtonText}>{t.goBack}</ThemedText>
         </Pressable>
       </ThemedView>
     );
