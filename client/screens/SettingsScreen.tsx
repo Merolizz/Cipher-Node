@@ -82,6 +82,7 @@ export default function SettingsScreen() {
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [currentLanguage, setCurrentLanguage] = useState<Language>("tr");
   const [showLanguageModal, setShowLanguageModal] = useState(false);
+  const [showTimerModal, setShowTimerModal] = useState(false);
 
   useEffect(() => {
     if (identity?.displayName) {
@@ -105,12 +106,15 @@ export default function SettingsScreen() {
   const handleToggle = useCallback(async (key: keyof PrivacySettings, value: boolean) => {
     if (key === "biometricLock" && value) {
       if (Platform.OS === "web") {
-        Alert.alert("Biometrik Kilit", "Bu ozellik sadece mobil cihazlarda kullanilabilir.");
+        Alert.alert(
+          currentLanguage === "tr" ? "Biyometrik Kilit" : "Biometric Lock",
+          currentLanguage === "tr" ? "Bu ozellik sadece mobil cihazlarda kullanilabilir." : "This feature is only available on mobile devices."
+        );
         return;
       }
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: "Biyometrik kilidi etkinlestirmek icin dogrulayin",
-        fallbackLabel: "Sifre kullan",
+        promptMessage: currentLanguage === "tr" ? "Biyometrik kilidi etkinlestirmek icin dogrulayin" : "Authenticate to enable biometric lock",
+        fallbackLabel: currentLanguage === "tr" ? "Sifre kullan" : "Use password",
       });
       if (!result.success) {
         return;
@@ -118,7 +122,7 @@ export default function SettingsScreen() {
     }
     setPrivacySettings((prev) => ({ ...prev, [key]: value }));
     await updatePrivacySettings({ [key]: value });
-  }, []);
+  }, [currentLanguage]);
 
   const timerLabels: Record<number, string> = {
     0: currentLanguage === "tr" ? "Kapali" : "Off",
@@ -127,6 +131,14 @@ export default function SettingsScreen() {
     300: currentLanguage === "tr" ? "5 dakika" : "5 minutes",
     3600: currentLanguage === "tr" ? "1 saat" : "1 hour",
     86400: currentLanguage === "tr" ? "1 gun" : "1 day",
+  };
+
+  const timerOptions = [0, 30, 60, 300, 3600, 86400];
+
+  const handleTimerChange = async (timer: number) => {
+    setDefaultTimer(timer);
+    await updateSettings({ defaultMessageTimer: timer });
+    setShowTimerModal(false);
   };
 
   const handleLanguageChange = async (lang: Language) => {
@@ -147,20 +159,26 @@ export default function SettingsScreen() {
         ]}
       >
         <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Identity</ThemedText>
+          <ThemedText style={styles.sectionTitle}>
+            {currentLanguage === "tr" ? "Kimlik" : "Identity"}
+          </ThemedText>
           <View style={styles.sectionContent}>
             <View style={styles.idDisplayRow}>
-              <ThemedText style={styles.idLabel}>Your ID</ThemedText>
+              <ThemedText style={styles.idLabel}>
+                {currentLanguage === "tr" ? "Kimliginiz" : "Your ID"}
+              </ThemedText>
               <ThemedText style={styles.idValue}>{identity?.id || "..."}</ThemedText>
             </View>
             <View style={styles.inputRow}>
-              <ThemedText style={styles.inputLabel}>Display Name</ThemedText>
+              <ThemedText style={styles.inputLabel}>
+                {currentLanguage === "tr" ? "Gosterim Adi" : "Display Name"}
+              </ThemedText>
               <TextInput
                 style={styles.input}
                 value={displayNameInput}
                 onChangeText={setDisplayNameInput}
                 onBlur={handleDisplayNameChange}
-                placeholder="Optional name"
+                placeholder={currentLanguage === "tr" ? "Opsiyonel ad" : "Optional name"}
                 placeholderTextColor={Colors.dark.textDisabled}
                 maxLength={30}
               />
@@ -169,18 +187,20 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Gizlilik</ThemedText>
+          <ThemedText style={styles.sectionTitle}>
+            {currentLanguage === "tr" ? "Gizlilik" : "Privacy"}
+          </ThemedText>
           <View style={styles.sectionContent}>
             <SettingsRow
               icon="clock"
-              title="Varsayilan Mesaj Zamanlayicisi"
-              subtitle={timerLabels[defaultTimer] || "Kapali"}
-              onPress={() => {}}
+              title={currentLanguage === "tr" ? "Varsayilan Mesaj Zamanlayicisi" : "Default Message Timer"}
+              subtitle={timerLabels[defaultTimer] || (currentLanguage === "tr" ? "Kapali" : "Off")}
+              onPress={() => setShowTimerModal(true)}
             />
             <SettingsRow
               icon="eye-off"
-              title="Ekran Korumasi"
-              subtitle="Ekran goruntusu ve kaydi engeller"
+              title={currentLanguage === "tr" ? "Ekran Korumasi" : "Screen Protection"}
+              subtitle={currentLanguage === "tr" ? "Ekran goruntusu ve kaydi engelle" : "Prevent screenshots and screen recording"}
               rightElement={
                 <Switch
                   value={privacySettings.screenProtection}
@@ -192,8 +212,8 @@ export default function SettingsScreen() {
             />
             <SettingsRow
               icon="lock"
-              title="Biyometrik Kilit"
-              subtitle={biometricAvailable ? "Parmak izi ile giris" : "Cihaz desteklemiyor"}
+              title={currentLanguage === "tr" ? "Biyometrik Kilit" : "Biometric Lock"}
+              subtitle={biometricAvailable ? (currentLanguage === "tr" ? "Parmak izi ile giris" : "Require fingerprint to open app") : (currentLanguage === "tr" ? "Cihaz desteklemiyor" : "Device not supported")}
               rightElement={
                 <Switch
                   value={privacySettings.biometricLock}
@@ -206,8 +226,8 @@ export default function SettingsScreen() {
             />
             <SettingsRow
               icon="image"
-              title="Otomatik Metadata Temizligi"
-              subtitle="Medya gonderirken EXIF verilerini temizler"
+              title={currentLanguage === "tr" ? "Otomatik Metadata Temizligi" : "Auto Metadata Scrubbing"}
+              subtitle={currentLanguage === "tr" ? "Medya gonderirken EXIF verilerini temizler" : "Remove EXIF data from images automatically"}
               rightElement={
                 <Switch
                   value={privacySettings.autoMetadataScrubbing}
@@ -221,12 +241,14 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Guvenlik ve Gizlilik</ThemedText>
+          <ThemedText style={styles.sectionTitle}>
+            {currentLanguage === "tr" ? "Guvenlik" : "Security"}
+          </ThemedText>
           <View style={styles.sectionContent}>
             <SettingsRow
               icon="layers"
-              title="Steganografi Modu"
-              subtitle="Mesajlari gorsellere gizleyerek gonderir"
+              title={currentLanguage === "tr" ? "Steganografi Modu" : "Steganography Mode"}
+              subtitle={currentLanguage === "tr" ? "Mesajlari gorsellere gizleyerek gonderir" : "Hide messages inside images"}
               rightElement={
                 <Switch
                   value={privacySettings.steganographyMode}
@@ -238,8 +260,8 @@ export default function SettingsScreen() {
             />
             <SettingsRow
               icon="user-x"
-              title="Hayalet Modu"
-              subtitle="Yaziyor ve okundu bilgisini gizler"
+              title={currentLanguage === "tr" ? "Hayalet Modu" : "Ghost Mode"}
+              subtitle={currentLanguage === "tr" ? "Yaziyor ve okundu bilgisini gizler" : "Hide typing indicator and read receipts"}
               rightElement={
                 <Switch
                   value={privacySettings.ghostMode}
@@ -253,12 +275,14 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Performans</ThemedText>
+          <ThemedText style={styles.sectionTitle}>
+            {currentLanguage === "tr" ? "Performans" : "Performance"}
+          </ThemedText>
           <View style={styles.sectionContent}>
             <SettingsRow
               icon="wifi"
-              title="Sadece P2P Modu"
-              subtitle="Relay sunucularini devre disi birakir"
+              title={currentLanguage === "tr" ? "Sadece P2P Modu" : "P2P Only Mode"}
+              subtitle={currentLanguage === "tr" ? "Relay sunucularini devre disi birakir" : "Use direct connections only"}
               rightElement={
                 <Switch
                   value={privacySettings.p2pOnlyMode}
@@ -270,8 +294,8 @@ export default function SettingsScreen() {
             />
             <SettingsRow
               icon="battery"
-              title="Dusuk Guc Modu"
-              subtitle="Animasyonlari ve UI efektlerini kapatir"
+              title={currentLanguage === "tr" ? "Dusuk Guc Modu" : "Low Power Mode"}
+              subtitle={currentLanguage === "tr" ? "Animasyonlari ve UI efektlerini kapatir" : "Reduce animations and effects"}
               rightElement={
                 <Switch
                   value={privacySettings.lowPowerMode}
@@ -335,6 +359,43 @@ export default function SettingsScreen() {
           </View>
         </Modal>
 
+        <Modal visible={showTimerModal} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <ThemedText style={styles.modalTitle}>
+                {currentLanguage === "tr" ? "Mesaj Zamanlayicisini Ayarla" : "Set Message Timer"}
+              </ThemedText>
+              {timerOptions.map((timer) => (
+                <Pressable
+                  key={timer}
+                  onPress={() => handleTimerChange(timer)}
+                  style={[
+                    styles.languageOption,
+                    defaultTimer === timer && styles.languageOptionSelected,
+                  ]}
+                >
+                  <ThemedText
+                    style={[
+                      styles.languageOptionText,
+                      defaultTimer === timer && styles.languageOptionTextSelected,
+                    ]}
+                  >
+                    {timerLabels[timer]}
+                  </ThemedText>
+                </Pressable>
+              ))}
+              <Pressable
+                onPress={() => setShowTimerModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <ThemedText style={styles.modalCloseButtonText}>
+                  {currentLanguage === "tr" ? "Kapat" : "Close"}
+                </ThemedText>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+
         <View style={styles.section}>
           <ThemedText style={styles.sectionTitle}>
             {currentLanguage === "tr" ? "Ag" : "Network"}
@@ -351,13 +412,13 @@ export default function SettingsScreen() {
 
         <View style={styles.section}>
           <ThemedText style={styles.sectionTitle}>
-            {currentLanguage === "tr" ? "Guvenlik" : "Security"}
+            {currentLanguage === "tr" ? "Guvenlik ve Anahtar Yonetimi" : "Security & Key Management"}
           </ThemedText>
           <View style={styles.sectionContent}>
             <SettingsRow
               icon="key"
-              title="Anahtar Yonetimi"
-              subtitle="Anahtarlari disa aktar veya yeniden olustur"
+              title={currentLanguage === "tr" ? "Anahtar Yonetimi" : "Key Management"}
+              subtitle={currentLanguage === "tr" ? "Anahtarlari disa aktar veya yeniden olustur" : "Export or regenerate keys"}
               onPress={() => navigation.navigate("SecuritySettings")}
             />
           </View>
