@@ -1,6 +1,6 @@
 import { io, Socket } from "socket.io-client";
 import { getApiUrl } from "./query-client";
-import { getTorSettings, type TorSettings } from "./storage";
+import { getTorSettings, getActiveGroups, type TorSettings } from "./storage";
 
 let socket: Socket | null = null;
 let currentUserId: string | null = null;
@@ -16,11 +16,20 @@ type MessageCallback = (msg: {
   timestamp: number;
 }) => void;
 
+type GroupMessageCallback = (msg: {
+  groupId: string;
+  from: string;
+  encrypted: string;
+  content?: string;
+  timestamp: number;
+}) => void;
+
 type TypingCallback = (data: { from: string }) => void;
 type StatusCallback = (status: "connected" | "disconnected" | "registered" | "tor_connected" | "tor_connecting") => void;
 type TorStatusCallback = (settings: TorSettings) => void;
 
 const messageListeners: MessageCallback[] = [];
+const groupMessageListeners: GroupMessageCallback[] = [];
 const typingListeners: TypingCallback[] = [];
 const statusListeners: StatusCallback[] = [];
 const torStatusListeners: TorStatusCallback[] = [];
@@ -56,8 +65,10 @@ export async function initSocket(userId: string, publicKey: string): Promise<Soc
     } : undefined,
   });
 
-  socket.on("connect", () => {
-    socket?.emit("register", { userId, publicKey, torEnabled });
+  socket.on("connect", async () => {
+    const userGroupsList = await getActiveGroups();
+    const groupIds = userGroupsList.map(g => g.id);
+    socket?.emit("register", { userId, publicKey, torEnabled, groups: groupIds });
     if (torEnabled) {
       statusListeners.forEach((cb) => cb("tor_connected"));
     }
@@ -69,6 +80,10 @@ export async function initSocket(userId: string, publicKey: string): Promise<Soc
 
   socket.on("message", (msg) => {
     messageListeners.forEach((cb) => cb(msg));
+  });
+
+  socket.on("group:message", (msg) => {
+    groupMessageListeners.forEach((cb) => cb(msg));
   });
 
   socket.on("typing", (data) => {
@@ -92,6 +107,30 @@ export function sendMessage(to: string, encrypted: string, id: string): void {
   }
 }
 
+export function sendGroupMessage(groupId: string, encrypted: string, content: string): void {
+  if (socket?.connected && currentUserId) {
+    socket.emit("group:message", { groupId, from: currentUserId, encrypted, content });
+  }
+}
+
+export function joinGroup(groupId: string): void {
+  if (socket?.connected && currentUserId) {
+    socket.emit("group:join", { groupId, userId: currentUserId });
+  }
+}
+
+export function leaveGroup(groupId: string): void {
+  if (socket?.connected && currentUserId) {
+    socket.emit("group:leave", { groupId, userId: currentUserId });
+  }
+}
+
+export function createGroupOnServer(groupId: string, members: string[]): void {
+  if (socket?.connected) {
+    socket.emit("group:create", { groupId, members });
+  }
+}
+
 export function sendTyping(to: string): void {
   if (socket?.connected) {
     socket.emit("typing", { to });
@@ -103,6 +142,14 @@ export function onMessage(callback: MessageCallback): () => void {
   return () => {
     const index = messageListeners.indexOf(callback);
     if (index > -1) messageListeners.splice(index, 1);
+  };
+}
+
+export function onGroupMessage(callback: GroupMessageCallback): () => void {
+  groupMessageListeners.push(callback);
+  return () => {
+    const index = groupMessageListeners.indexOf(callback);
+    if (index > -1) groupMessageListeners.splice(index, 1);
   };
 }
 

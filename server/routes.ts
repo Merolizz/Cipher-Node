@@ -8,6 +8,7 @@ interface PendingMessage {
   encrypted: string;
   timestamp: number;
   groupId?: string;
+  content?: string;
 }
 
 interface GroupInfo {
@@ -58,14 +59,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
   io.on("connection", (socket) => {
     console.log(`[Relay] Client connected: ${socket.id}`);
 
-    socket.on("register", (userId: string) => {
+    socket.on("register", (data: { userId: string; publicKey?: string; torEnabled?: boolean; groups?: string[] } | string) => {
+      const userId = typeof data === "string" ? data : data.userId;
+      const userGroups = typeof data === "object" ? data.groups : undefined;
+      
       connectedUsers.set(userId, socket.id);
       console.log(`[Relay] User registered: ${userId}`);
+
+      if (userGroups && userGroups.length > 0) {
+        userGroups.forEach((groupId) => {
+          socket.join(groupId);
+          const group = groups.get(groupId);
+          if (group) {
+            if (!group.members.includes(userId)) {
+              group.members.push(userId);
+            }
+          } else {
+            groups.set(groupId, { id: groupId, members: [userId] });
+          }
+        });
+        console.log(`[Relay] User ${userId} rejoined ${userGroups.length} groups`);
+      }
 
       const pending = pendingMessages.get(userId);
       if (pending && pending.length > 0) {
         pending.forEach((msg) => {
-          socket.emit("message", msg);
+          if (msg.groupId) {
+            socket.emit("group:message", {
+              groupId: msg.groupId,
+              from: msg.from,
+              encrypted: msg.encrypted,
+              content: msg.content,
+              timestamp: msg.timestamp,
+            });
+          } else {
+            socket.emit("message", msg);
+          }
         });
         pendingMessages.delete(userId);
         console.log(`[Relay] Delivered ${pending.length} pending messages to ${userId}`);
@@ -146,6 +175,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 encrypted: data.encrypted,
                 timestamp,
                 groupId: data.groupId,
+                content: data.content,
               });
               pendingMessages.set(memberId, pending);
             }

@@ -19,6 +19,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius, Fonts } from "@/constants/theme";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { getGroup, saveGroupMessage, generateMessageId, type Group, type Message } from "@/lib/storage";
+import { sendGroupMessage, onGroupMessage } from "@/lib/socket";
 import { useIdentity } from "@/hooks/useIdentity";
 import type { ChatsStackParamList } from "@/navigation/ChatsStackNavigator";
 
@@ -80,6 +81,26 @@ export default function GroupThreadScreen() {
   );
 
   useEffect(() => {
+    const unsubscribe = onGroupMessage(async (msg) => {
+      if (msg.groupId === groupId) {
+        const newMessage: Message = {
+          id: generateMessageId(),
+          content: msg.content || msg.encrypted,
+          encrypted: msg.encrypted,
+          senderId: msg.from,
+          recipientId: groupId,
+          timestamp: msg.timestamp,
+          status: "received",
+          groupId,
+        };
+        await saveGroupMessage(groupId, newMessage);
+        loadGroup();
+      }
+    });
+    return unsubscribe;
+  }, [groupId, loadGroup]);
+
+  useEffect(() => {
     if (group) {
       navigation.setOptions({
         headerTitle: group.name,
@@ -111,9 +132,10 @@ export default function GroupThreadScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
 
+    const content = inputText.trim();
     const message: Message = {
       id: generateMessageId(),
-      content: inputText.trim(),
+      content,
       encrypted: "",
       senderId: identity.id,
       recipientId: groupId,
@@ -123,6 +145,7 @@ export default function GroupThreadScreen() {
     };
 
     await saveGroupMessage(groupId, message);
+    sendGroupMessage(groupId, content, content);
     setInputText("");
     loadGroup();
 

@@ -16,6 +16,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { Colors, Spacing, BorderRadius, Fonts } from "@/constants/theme";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { createGroup, getContacts } from "@/lib/storage";
+import { createGroupOnServer } from "@/lib/socket";
 import { useIdentity } from "@/hooks/useIdentity";
 import type { Contact } from "@/lib/crypto";
 import { useLanguage } from "@/constants/language";
@@ -79,13 +80,16 @@ export default function CreateGroupScreen() {
 
     setIsCreating(true);
     try {
-      await createGroup(
+      const newGroup = await createGroup(
         name.trim(),
         description.trim(),
         identity.id,
         identity.publicKey,
         identity.displayName || identity.id
       );
+
+      const memberIds = [identity.id, ...selectedContacts];
+      createGroupOnServer(newGroup.id, memberIds);
 
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
