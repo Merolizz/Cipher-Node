@@ -24,6 +24,9 @@ import {
   saveMessage,
   markChatAsRead,
   generateMessageId,
+  getSettings,
+  calculateExpiresAt,
+  cleanupExpiredMessagesForChat,
   type Message,
 } from "@/lib/storage";
 import type { Contact } from "@/lib/crypto";
@@ -36,9 +39,23 @@ type ScreenRouteProp = RouteProp<ChatsStackParamList, "ChatThread">;
 interface MessageBubbleProps {
   message: Message;
   isMine: boolean;
+  currentTime: number;
 }
 
-function MessageBubble({ message, isMine }: MessageBubbleProps) {
+function formatRemainingTime(expiresAt: number, now: number): string {
+  const remaining = expiresAt - now;
+  if (remaining <= 0) return "";
+  const seconds = Math.floor(remaining / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
+}
+
+function MessageBubble({ message, isMine, currentTime }: MessageBubbleProps) {
   const formatTime = (timestamp: number) => {
     return new Date(timestamp).toLocaleTimeString([], {
       hour: "2-digit",
@@ -62,12 +79,31 @@ function MessageBubble({ message, isMine }: MessageBubbleProps) {
         {message.content}
       </ThemedText>
       <View style={styles.messageFooter}>
-        <Feather
-          name="lock"
-          size={10}
-          color={isMine ? Colors.dark.buttonText : Colors.dark.secondary}
-          style={styles.lockIcon}
-        />
+        {message.expiresAt ? (
+          <View style={styles.timerContainer}>
+            <Feather
+              name="clock"
+              size={10}
+              color={isMine ? Colors.dark.buttonText : Colors.dark.warning}
+              style={styles.lockIcon}
+            />
+            <ThemedText
+              style={[
+                styles.timerText,
+                { color: isMine ? Colors.dark.buttonText : Colors.dark.warning },
+              ]}
+            >
+              {formatRemainingTime(message.expiresAt, currentTime)}
+            </ThemedText>
+          </View>
+        ) : (
+          <Feather
+            name="lock"
+            size={10}
+            color={isMine ? Colors.dark.buttonText : Colors.dark.secondary}
+            style={styles.lockIcon}
+          />
+        )}
         <ThemedText
           style={[
             styles.messageTime,
@@ -92,18 +128,39 @@ export default function ChatThreadScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [contact, setContact] = useState<Contact | null>(null);
   const [inputText, setInputText] = useState("");
+  const [messageTimer, setMessageTimer] = useState(0);
+  const [currentTime, setCurrentTime] = useState(Date.now());
   const flatListRef = useRef<FlatList>(null);
 
+  useEffect(() => {
+    const tickerInterval = setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => clearInterval(tickerInterval);
+  }, []);
+
   const loadData = useCallback(async () => {
-    const [chatData, contactData] = await Promise.all([
+    await cleanupExpiredMessagesForChat(contactId);
+    const [chatData, contactData, settings] = await Promise.all([
       getChat(contactId),
       getContact(contactId),
+      getSettings(),
     ]);
     setMessages(chatData?.messages || []);
     setContact(contactData);
+    setMessageTimer(settings.defaultMessageTimer);
     if (chatData) {
       await markChatAsRead(contactId);
     }
+  }, [contactId]);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      await cleanupExpiredMessagesForChat(contactId);
+      const chatData = await getChat(contactId);
+      if (chatData) {
+        setMessages(chatData.messages);
+      }
+    }, 5000);
+    return () => clearInterval(interval);
   }, [contactId]);
 
   useFocusEffect(
@@ -137,6 +194,7 @@ export default function ChatThreadScreen() {
       recipientId: contactId,
       timestamp: Date.now(),
       status: "sent",
+      expiresAt: calculateExpiresAt(messageTimer),
     };
 
     await saveMessage(contactId, message);
@@ -146,7 +204,7 @@ export default function ChatThreadScreen() {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-  }, [inputText, identity, contactId]);
+  }, [inputText, identity, contactId, messageTimer]);
 
   return (
     <ThemedView style={styles.container}>
@@ -158,6 +216,7 @@ export default function ChatThreadScreen() {
           <MessageBubble
             message={item}
             isMine={item.senderId === identity?.id}
+            currentTime={currentTime}
           />
         )}
         contentContainerStyle={[
@@ -259,6 +318,15 @@ const styles = StyleSheet.create({
   },
   lockIcon: {
     marginRight: 4,
+  },
+  timerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 6,
+  },
+  timerText: {
+    fontSize: 10,
+    fontWeight: "600",
   },
   messageTime: {
     fontSize: 10,

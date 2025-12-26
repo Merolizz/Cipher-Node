@@ -103,6 +103,12 @@ export const translations = {
     createFirstGroup: "İlk grubunuzu oluşturun",
     groupChat: "Grup Sohbeti",
     enterGroupName: "Lütfen grup adı girin",
+    
+    // Disappearing Messages
+    disappearingMessages: "Kaybolacak Mesajlar",
+    disappearingDesc: "Mesajlar belirlenen süre sonra otomatik silinir",
+    messageWillDisappear: "Bu mesaj kaybolacak",
+    expiresIn: "Süre:",
   },
   en: {
     // Identity
@@ -184,6 +190,12 @@ export const translations = {
     createFirstGroup: "Create your first group",
     groupChat: "Group Chat",
     enterGroupName: "Please enter group name",
+    
+    // Disappearing Messages
+    disappearingMessages: "Disappearing Messages",
+    disappearingDesc: "Messages are automatically deleted after set time",
+    messageWillDisappear: "This message will disappear",
+    expiresIn: "Expires in:",
   },
 } as const;
 

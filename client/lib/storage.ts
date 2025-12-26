@@ -15,7 +15,7 @@ export interface Message {
   senderId: string;
   recipientId: string;
   timestamp: number;
-  status: "sending" | "sent" | "delivered" | "read";
+  status: "sending" | "sent" | "delivered" | "read" | "received";
   expiresAt?: number;
   groupId?: string;
 }
@@ -455,4 +455,90 @@ export async function clearAllData(): Promise<void> {
 
 export function generateMessageId(): string {
   return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+export async function cleanupExpiredMessages(): Promise<number> {
+  const now = Date.now();
+  let deletedCount = 0;
+
+  const chats = await getChats();
+  for (const chat of chats) {
+    const originalLength = chat.messages.length;
+    chat.messages = chat.messages.filter((msg) => {
+      if (msg.expiresAt && msg.expiresAt <= now) {
+        return false;
+      }
+      return true;
+    });
+    const deleted = originalLength - chat.messages.length;
+    deletedCount += deleted;
+    if (deleted > 0) {
+      chat.lastMessageAt = chat.messages.length > 0 
+        ? chat.messages[chat.messages.length - 1].timestamp 
+        : 0;
+      chat.unreadCount = Math.min(chat.unreadCount, chat.messages.length);
+    }
+  }
+  await AsyncStorage.setItem(CHATS_KEY, JSON.stringify(chats));
+
+  const groups = await getGroups();
+  for (const group of groups) {
+    const originalLength = group.messages.length;
+    group.messages = group.messages.filter((msg) => {
+      if (msg.expiresAt && msg.expiresAt <= now) {
+        return false;
+      }
+      return true;
+    });
+    const deleted = originalLength - group.messages.length;
+    deletedCount += deleted;
+    if (deleted > 0) {
+      group.lastMessageAt = group.messages.length > 0 
+        ? group.messages[group.messages.length - 1].timestamp 
+        : 0;
+      group.unreadCount = Math.min(group.unreadCount, group.messages.length);
+    }
+  }
+  await AsyncStorage.setItem(GROUPS_KEY, JSON.stringify(groups));
+
+  return deletedCount;
+}
+
+export async function cleanupExpiredMessagesForChat(contactId: string): Promise<void> {
+  const now = Date.now();
+  const chats = await getChats();
+  const chat = chats.find((c) => c.contactId === contactId);
+  if (chat) {
+    const originalLength = chat.messages.length;
+    chat.messages = chat.messages.filter((msg) => !msg.expiresAt || msg.expiresAt > now);
+    if (chat.messages.length !== originalLength) {
+      chat.lastMessageAt = chat.messages.length > 0 
+        ? chat.messages[chat.messages.length - 1].timestamp 
+        : 0;
+      chat.unreadCount = Math.min(chat.unreadCount, chat.messages.length);
+      await AsyncStorage.setItem(CHATS_KEY, JSON.stringify(chats));
+    }
+  }
+}
+
+export async function cleanupExpiredMessagesForGroup(groupId: string): Promise<void> {
+  const now = Date.now();
+  const groups = await getGroups();
+  const group = groups.find((g) => g.id === groupId);
+  if (group) {
+    const originalLength = group.messages.length;
+    group.messages = group.messages.filter((msg) => !msg.expiresAt || msg.expiresAt > now);
+    if (group.messages.length !== originalLength) {
+      group.lastMessageAt = group.messages.length > 0 
+        ? group.messages[group.messages.length - 1].timestamp 
+        : 0;
+      group.unreadCount = Math.min(group.unreadCount, group.messages.length);
+      await AsyncStorage.setItem(GROUPS_KEY, JSON.stringify(groups));
+    }
+  }
+}
+
+export function calculateExpiresAt(timerSeconds: number): number | undefined {
+  if (timerSeconds <= 0) return undefined;
+  return Date.now() + timerSeconds * 1000;
 }

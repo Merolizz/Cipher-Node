@@ -18,7 +18,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius, Fonts } from "@/constants/theme";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
-import { getGroup, saveGroupMessage, generateMessageId, type Group, type Message } from "@/lib/storage";
+import { getGroup, saveGroupMessage, generateMessageId, getSettings, calculateExpiresAt, cleanupExpiredMessagesForGroup, type Group, type Message } from "@/lib/storage";
 import { sendGroupMessage, onGroupMessage } from "@/lib/socket";
 import { useIdentity } from "@/hooks/useIdentity";
 import type { ChatsStackParamList } from "@/navigation/ChatsStackNavigator";
@@ -30,9 +30,23 @@ interface MessageBubbleProps {
   message: Message;
   isOwn: boolean;
   senderName: string;
+  currentTime: number;
 }
 
-function MessageBubble({ message, isOwn, senderName }: MessageBubbleProps) {
+function formatRemainingTime(expiresAt: number, now: number): string {
+  const remaining = expiresAt - now;
+  if (remaining <= 0) return "";
+  const seconds = Math.floor(remaining / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
+}
+
+function MessageBubble({ message, isOwn, senderName, currentTime }: MessageBubbleProps) {
   const formatTime = (timestamp: number) => {
     return new Date(timestamp).toLocaleTimeString([], {
       hour: "2-digit",
@@ -49,9 +63,28 @@ function MessageBubble({ message, isOwn, senderName }: MessageBubbleProps) {
         <ThemedText style={[styles.messageText, isOwn && styles.ownMessageText]}>
           {message.content}
         </ThemedText>
-        <ThemedText style={[styles.messageTime, isOwn && styles.ownMessageTime]}>
-          {formatTime(message.timestamp)}
-        </ThemedText>
+        <View style={styles.messageFooter}>
+          {message.expiresAt ? (
+            <View style={styles.timerContainer}>
+              <Feather
+                name="clock"
+                size={10}
+                color={isOwn ? Colors.dark.buttonText : Colors.dark.warning}
+              />
+              <ThemedText
+                style={[
+                  styles.timerText,
+                  { color: isOwn ? Colors.dark.buttonText : Colors.dark.warning },
+                ]}
+              >
+                {formatRemainingTime(message.expiresAt, currentTime)}
+              </ThemedText>
+            </View>
+          ) : null}
+          <ThemedText style={[styles.messageTime, isOwn && styles.ownMessageTime]}>
+            {formatTime(message.timestamp)}
+          </ThemedText>
+        </View>
       </View>
     </View>
   );
@@ -68,10 +101,28 @@ export default function GroupThreadScreen() {
 
   const [group, setGroup] = useState<Group | null>(null);
   const [inputText, setInputText] = useState("");
+  const [messageTimer, setMessageTimer] = useState(0);
+  const [currentTime, setCurrentTime] = useState(Date.now());
+
+  useEffect(() => {
+    const tickerInterval = setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => clearInterval(tickerInterval);
+  }, []);
 
   const loadGroup = useCallback(async () => {
-    const g = await getGroup(groupId);
+    await cleanupExpiredMessagesForGroup(groupId);
+    const [g, settings] = await Promise.all([getGroup(groupId), getSettings()]);
     setGroup(g);
+    setMessageTimer(settings.defaultMessageTimer);
+  }, [groupId]);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      await cleanupExpiredMessagesForGroup(groupId);
+      const g = await getGroup(groupId);
+      if (g) setGroup(g);
+    }, 5000);
+    return () => clearInterval(interval);
   }, [groupId]);
 
   useFocusEffect(
@@ -142,6 +193,7 @@ export default function GroupThreadScreen() {
       timestamp: Date.now(),
       status: "sent",
       groupId,
+      expiresAt: calculateExpiresAt(messageTimer),
     };
 
     await saveGroupMessage(groupId, message);
@@ -173,6 +225,7 @@ export default function GroupThreadScreen() {
             message={item}
             isOwn={item.senderId === identity?.id}
             senderName={getSenderName(item.senderId)}
+            currentTime={currentTime}
           />
         )}
         contentContainerStyle={[
@@ -282,11 +335,25 @@ const styles = StyleSheet.create({
   messageTime: {
     fontSize: 11,
     color: Colors.dark.textSecondary,
-    marginTop: Spacing.xs,
-    alignSelf: "flex-end",
   },
   ownMessageTime: {
     color: Colors.dark.buttonText + "99",
+  },
+  messageFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    marginTop: Spacing.xs,
+  },
+  timerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 6,
+  },
+  timerText: {
+    fontSize: 10,
+    fontWeight: "600",
+    marginLeft: 2,
   },
   emptyState: {
     flex: 1,
