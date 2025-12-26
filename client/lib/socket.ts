@@ -1,8 +1,12 @@
 import { io, Socket } from "socket.io-client";
 import { getApiUrl } from "./query-client";
+import { getTorSettings, type TorSettings } from "./storage";
 
 let socket: Socket | null = null;
 let currentUserId: string | null = null;
+let currentPublicKey: string = "";
+let torEnabled: boolean = false;
+let currentTorSettings: TorSettings | null = null;
 
 type MessageCallback = (msg: {
   id: string;
@@ -13,13 +17,15 @@ type MessageCallback = (msg: {
 }) => void;
 
 type TypingCallback = (data: { from: string }) => void;
-type StatusCallback = (status: "connected" | "disconnected" | "registered") => void;
+type StatusCallback = (status: "connected" | "disconnected" | "registered" | "tor_connected" | "tor_connecting") => void;
+type TorStatusCallback = (settings: TorSettings) => void;
 
 const messageListeners: MessageCallback[] = [];
 const typingListeners: TypingCallback[] = [];
 const statusListeners: StatusCallback[] = [];
+const torStatusListeners: TorStatusCallback[] = [];
 
-export function initSocket(userId: string, publicKey: string): Socket {
+export async function initSocket(userId: string, publicKey: string): Promise<Socket> {
   if (socket?.connected && currentUserId === userId) {
     return socket;
   }
@@ -29,15 +35,32 @@ export function initSocket(userId: string, publicKey: string): Socket {
   }
 
   currentUserId = userId;
+  currentPublicKey = publicKey;
   const url = getApiUrl();
+  
+  const torSettings = await getTorSettings();
+  currentTorSettings = torSettings;
+  torEnabled = torSettings.enabled;
+
+  if (torEnabled) {
+    statusListeners.forEach((cb) => cb("tor_connecting"));
+    torStatusListeners.forEach((cb) => cb(torSettings));
+  }
 
   socket = io(url, {
     transports: ["websocket", "polling"],
     autoConnect: true,
+    extraHeaders: torEnabled ? {
+      "X-Tor-Enabled": "true",
+      "X-Tor-Proxy": `${torSettings.proxyHost}:${torSettings.proxyPort}`,
+    } : undefined,
   });
 
   socket.on("connect", () => {
-    socket?.emit("register", { userId, publicKey });
+    socket?.emit("register", { userId, publicKey, torEnabled });
+    if (torEnabled) {
+      statusListeners.forEach((cb) => cb("tor_connected"));
+    }
   });
 
   socket.on("registered", () => {
@@ -109,4 +132,60 @@ export function disconnect(): void {
 
 export function isConnected(): boolean {
   return socket?.connected ?? false;
+}
+
+export function isTorEnabled(): boolean {
+  return torEnabled;
+}
+
+export function getTorConnectionInfo(): TorSettings | null {
+  return currentTorSettings;
+}
+
+export function onTorStatusChange(callback: TorStatusCallback): () => void {
+  torStatusListeners.push(callback);
+  return () => {
+    const index = torStatusListeners.indexOf(callback);
+    if (index > -1) torStatusListeners.splice(index, 1);
+  };
+}
+
+export async function reconnectWithTor(): Promise<void> {
+  if (currentUserId) {
+    const userId = currentUserId;
+    const publicKey = currentPublicKey;
+    disconnect();
+    const torSettings = await getTorSettings();
+    currentTorSettings = torSettings;
+    torEnabled = torSettings.enabled;
+    
+    return new Promise((resolve, reject) => {
+      initSocket(userId, publicKey).then((newSocket) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("Connection timeout"));
+        }, 10000);
+        
+        const onConnect = () => {
+          clearTimeout(timeout);
+          newSocket.off("connect", onConnect);
+          newSocket.off("connect_error", onError);
+          resolve();
+        };
+        
+        const onError = () => {
+          clearTimeout(timeout);
+          newSocket.off("connect", onConnect);
+          newSocket.off("connect_error", onError);
+          reject(new Error("Connection failed"));
+        };
+        
+        if (newSocket.connected) {
+          resolve();
+        } else {
+          newSocket.on("connect", onConnect);
+          newSocket.on("connect_error", onError);
+        }
+      }).catch(reject);
+    });
+  }
 }

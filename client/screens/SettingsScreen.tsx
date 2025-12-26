@@ -20,7 +20,8 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius, Fonts } from "@/constants/theme";
 import { useIdentity } from "@/hooks/useIdentity";
-import { getSettings, updateSettings, getPrivacySettings, updatePrivacySettings, setLanguage as saveLanguage, type PrivacySettings } from "@/lib/storage";
+import { getSettings, updateSettings, getPrivacySettings, updatePrivacySettings, getTorSettings, updateTorSettings, setLanguage as saveLanguage, type PrivacySettings, type TorSettings } from "@/lib/storage";
+import { reconnectWithTor } from "@/lib/socket";
 import { SUPPORTED_LANGUAGES, type Language, useLanguage } from "@/constants/language";
 import type { SettingsStackParamList } from "@/navigation/SettingsStackNavigator";
 
@@ -80,9 +81,17 @@ export default function SettingsScreen() {
     p2pOnlyMode: false,
     lowPowerMode: false,
   });
+  const [torSettings, setTorSettings] = useState<TorSettings>({
+    enabled: false,
+    proxyHost: "127.0.0.1",
+    proxyPort: 9050,
+    connectionStatus: "disconnected",
+  });
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showTimerModal, setShowTimerModal] = useState(false);
+  const [showTorModal, setShowTorModal] = useState(false);
+  const [torProxyInput, setTorProxyInput] = useState("127.0.0.1:9050");
 
   useEffect(() => {
     if (identity?.displayName) {
@@ -92,6 +101,10 @@ export default function SettingsScreen() {
       setDefaultTimer(s.defaultMessageTimer);
     });
     getPrivacySettings().then(setPrivacySettings);
+    getTorSettings().then((t) => {
+      setTorSettings(t);
+      setTorProxyInput(`${t.proxyHost}:${t.proxyPort}`);
+    });
     LocalAuthentication.hasHardwareAsync().then(setBiometricAvailable);
   }, [identity]);
 
@@ -144,6 +157,72 @@ export default function SettingsScreen() {
     setContextLanguage(lang);
     await saveLanguage(lang);
     setShowLanguageModal(false);
+  };
+
+  const handleTorToggle = async (enabled: boolean) => {
+    if (enabled) {
+      setTorSettings((prev) => ({ ...prev, enabled: true, connectionStatus: "connecting" }));
+      await updateTorSettings({ enabled: true, connectionStatus: "connecting" });
+      try {
+        await reconnectWithTor();
+        setTorSettings((prev) => ({ ...prev, connectionStatus: "connected" }));
+        await updateTorSettings({ connectionStatus: "connected" });
+      } catch {
+        setTorSettings((prev) => ({ ...prev, connectionStatus: "error" }));
+        await updateTorSettings({ connectionStatus: "error" });
+      }
+    } else {
+      setTorSettings((prev) => ({ ...prev, enabled: false, connectionStatus: "disconnected" }));
+      await updateTorSettings({ enabled: false, connectionStatus: "disconnected" });
+      try {
+        await reconnectWithTor();
+      } catch {
+      }
+    }
+  };
+
+  const handleTorProxySave = async () => {
+    const parts = torProxyInput.split(":");
+    if (parts.length === 2) {
+      const host = parts[0];
+      const port = parseInt(parts[1], 10);
+      if (!isNaN(port)) {
+        setTorSettings((prev) => ({ ...prev, proxyHost: host, proxyPort: port }));
+        await updateTorSettings({ proxyHost: host, proxyPort: port });
+        setShowTorModal(false);
+        return;
+      }
+    }
+    Alert.alert(
+      currentLanguage === "tr" ? "Gecersiz Format" : "Invalid Format",
+      currentLanguage === "tr" ? "Lutfen host:port formatinda girin (ornek: 127.0.0.1:9050)" : "Please enter in host:port format (example: 127.0.0.1:9050)"
+    );
+  };
+
+  const getTorStatusText = () => {
+    switch (torSettings.connectionStatus) {
+      case "connected":
+        return currentLanguage === "tr" ? "Bagli" : "Connected";
+      case "connecting":
+        return currentLanguage === "tr" ? "Baglaniyor..." : "Connecting...";
+      case "error":
+        return currentLanguage === "tr" ? "Hata" : "Error";
+      default:
+        return currentLanguage === "tr" ? "Bagli Degil" : "Disconnected";
+    }
+  };
+
+  const getTorStatusColor = () => {
+    switch (torSettings.connectionStatus) {
+      case "connected":
+        return Colors.dark.success;
+      case "connecting":
+        return Colors.dark.warning;
+      case "error":
+        return Colors.dark.error;
+      default:
+        return Colors.dark.textSecondary;
+    }
   };
 
   return (
@@ -395,6 +474,84 @@ export default function SettingsScreen() {
           </View>
         </Modal>
 
+        <Modal visible={showTorModal} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <ThemedText style={styles.modalTitle}>
+                {currentLanguage === "tr" ? "Tor Proxy Ayarlari" : "Tor Proxy Settings"}
+              </ThemedText>
+              <ThemedText style={styles.settingsRowSubtitle}>
+                {currentLanguage === "tr" ? "Host:Port formatinda girin" : "Enter in Host:Port format"}
+              </ThemedText>
+              <TextInput
+                style={styles.torModalInput}
+                value={torProxyInput}
+                onChangeText={setTorProxyInput}
+                placeholder="127.0.0.1:9050"
+                placeholderTextColor={Colors.dark.textDisabled}
+                keyboardType="default"
+                autoCapitalize="none"
+              />
+              <View style={styles.torModalButtons}>
+                <Pressable
+                  onPress={() => setShowTorModal(false)}
+                  style={[styles.torModalButton, styles.torModalButtonSecondary]}
+                >
+                  <ThemedText style={styles.torModalButtonText}>
+                    {currentLanguage === "tr" ? "Iptal" : "Cancel"}
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  onPress={handleTorProxySave}
+                  style={[styles.torModalButton, styles.torModalButtonPrimary]}
+                >
+                  <ThemedText style={styles.torModalButtonText}>
+                    {currentLanguage === "tr" ? "Kaydet" : "Save"}
+                  </ThemedText>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        <View style={styles.section}>
+          <ThemedText style={styles.sectionTitle}>
+            {currentLanguage === "tr" ? "Tor Baglantisi" : "Tor Connection"}
+          </ThemedText>
+          <View style={styles.sectionContent}>
+            <SettingsRow
+              icon="shield"
+              title={currentLanguage === "tr" ? "Tor Uzerinden Baglan" : "Connect via Tor"}
+              subtitle={getTorStatusText()}
+              rightElement={
+                <View style={styles.torStatusRow}>
+                  <View style={[styles.torStatusDot, { backgroundColor: getTorStatusColor() }]} />
+                  <Switch
+                    value={torSettings.enabled}
+                    onValueChange={handleTorToggle}
+                    trackColor={{ false: Colors.dark.border, true: Colors.dark.secondary }}
+                    thumbColor={torSettings.enabled ? Colors.dark.text : Colors.dark.textSecondary}
+                  />
+                </View>
+              }
+            />
+            <SettingsRow
+              icon="settings"
+              title={currentLanguage === "tr" ? "Proxy Ayarlari" : "Proxy Settings"}
+              subtitle={`${torSettings.proxyHost}:${torSettings.proxyPort}`}
+              onPress={() => setShowTorModal(true)}
+            />
+            <View style={styles.torInfoRow}>
+              <Feather name="info" size={14} color={Colors.dark.textSecondary} />
+              <ThemedText style={styles.torInfoText}>
+                {currentLanguage === "tr"
+                  ? "Tor kullanmak icin cihazinizda Orbot uygulamasinin calisir durumda olmasi gerekir."
+                  : "Orbot app must be running on your device to use Tor."}
+              </ThemedText>
+            </View>
+          </View>
+        </View>
+
         <View style={styles.section}>
           <ThemedText style={styles.sectionTitle}>
             {currentLanguage === "tr" ? "Ag" : "Network"}
@@ -581,5 +738,58 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Colors.dark.text,
     textAlign: "center",
+  },
+  torStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  torStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  torInfoRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: Spacing.lg,
+    gap: Spacing.sm,
+    backgroundColor: Colors.dark.backgroundSecondary,
+  },
+  torInfoText: {
+    flex: 1,
+    fontSize: 12,
+    color: Colors.dark.textSecondary,
+    lineHeight: 16,
+  },
+  torModalInput: {
+    backgroundColor: Colors.dark.backgroundSecondary,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
+    fontSize: 16,
+    color: Colors.dark.text,
+    marginBottom: Spacing.lg,
+    fontFamily: Fonts?.mono,
+  },
+  torModalButtons: {
+    flexDirection: "row",
+    gap: Spacing.md,
+  },
+  torModalButton: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    alignItems: "center",
+  },
+  torModalButtonPrimary: {
+    backgroundColor: Colors.dark.secondary,
+  },
+  torModalButtonSecondary: {
+    backgroundColor: Colors.dark.backgroundSecondary,
+  },
+  torModalButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.dark.text,
   },
 });

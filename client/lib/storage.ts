@@ -66,6 +66,13 @@ export interface PrivacySettings {
   lowPowerMode: boolean;
 }
 
+export interface TorSettings {
+  enabled: boolean;
+  proxyHost: string;
+  proxyPort: number;
+  connectionStatus: "disconnected" | "connecting" | "connected" | "error";
+}
+
 const DEFAULT_SETTINGS: AppSettings = {
   serverUrl: "",
   defaultMessageTimer: 0,
@@ -83,7 +90,15 @@ const DEFAULT_PRIVACY_SETTINGS: PrivacySettings = {
   lowPowerMode: false,
 };
 
+const DEFAULT_TOR_SETTINGS: TorSettings = {
+  enabled: false,
+  proxyHost: "127.0.0.1",
+  proxyPort: 9050,
+  connectionStatus: "disconnected",
+};
+
 const PRIVACY_SETTINGS_KEY = "@ciphernode/privacy_settings";
+const TOR_SETTINGS_KEY = "@ciphernode/tor_settings";
 
 export async function hasCompletedOnboarding(): Promise<boolean> {
   try {
@@ -386,6 +401,27 @@ export async function updatePrivacySettings(
   const current = await getPrivacySettings();
   await AsyncStorage.setItem(
     PRIVACY_SETTINGS_KEY,
+    JSON.stringify({ ...current, ...updates })
+  );
+}
+
+export async function getTorSettings(): Promise<TorSettings> {
+  try {
+    const stored = await AsyncStorage.getItem(TOR_SETTINGS_KEY);
+    return stored
+      ? { ...DEFAULT_TOR_SETTINGS, ...JSON.parse(stored) }
+      : DEFAULT_TOR_SETTINGS;
+  } catch {
+    return DEFAULT_TOR_SETTINGS;
+  }
+}
+
+export async function updateTorSettings(
+  updates: Partial<TorSettings>
+): Promise<void> {
+  const current = await getTorSettings();
+  await AsyncStorage.setItem(
+    TOR_SETTINGS_KEY,
     JSON.stringify({ ...current, ...updates })
   );
 }
