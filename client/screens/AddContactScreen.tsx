@@ -8,8 +8,7 @@ import {
   Platform,
 } from "react-native";
 import { useNavigation, CommonActions } from "@react-navigation/native";
-import { useHeaderHeight } from "@react-navigation/elements";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
@@ -28,8 +27,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function AddContactScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const headerHeight = useHeaderHeight();
-  const tabBarHeight = useBottomTabBarHeight();
+  const insets = useSafeAreaInsets();
   const { identity, loading } = useIdentity();
   const { language } = useLanguage();
 
@@ -142,8 +140,8 @@ export default function AddContactScreen() {
       contentContainerStyle={[
         styles.content,
         {
-          paddingTop: headerHeight + Spacing.xl,
-          paddingBottom: tabBarHeight + Spacing.xl,
+          paddingTop: Spacing.xl,
+          paddingBottom: insets.bottom + Spacing.xl,
         },
       ]}
     >
