@@ -96,6 +96,28 @@ CipherNode is an open-source messenger that prioritizes privacy and security. It
 
 ## Deployment
 
+### Building Android APK
+
+Build a native Android APK using EAS Build:
+
+```bash
+# Install EAS CLI globally
+npm install -g eas-cli
+
+# Login to Expo account
+eas login
+
+# Build preview APK (for testing)
+npm run build:apk:preview
+
+# Build production APK (for distribution)
+npm run build:apk:production
+```
+
+The project includes native crypto support via `react-native-quick-crypto` for Web Crypto API compatibility, ensuring OpenPGP encryption works correctly in native builds.
+
+For detailed build instructions and troubleshooting, see [BUILD_APK.md](BUILD_APK.md).
+
 ### Self-Hosted with Docker
 
 CipherNode includes comprehensive Docker configuration for self-hosting:

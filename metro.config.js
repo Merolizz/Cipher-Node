@@ -12,6 +12,12 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
       type: "sourceFile",
     };
   }
+  if (moduleName === "crypto") {
+    return {
+      filePath: path.resolve(__dirname, "node_modules/react-native-quick-crypto/lib/index.js"),
+      type: "sourceFile",
+    };
+  }
   return context.resolveRequest(context, moduleName, platform);
 };
 
